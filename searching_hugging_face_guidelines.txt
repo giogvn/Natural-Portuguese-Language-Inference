@@ -1,0 +1,30 @@
+In order to beging training Natural Language Inference Models in Portuguese I 
+need to accomplish the following goals:
+#1 Finding Natural Language Inference (NLI) datasets in Portuguese
+#2 Finding Natural Language Processing (NLP) models to train on such datasets
+
+Both goals are related to making searches and therefore I'll be using the 
+HuggingFaceAPI (HFApi) to help me with that given that HuggingFace is the 
+platform from where I'll be getting the data and the models.
+
+But how can HFApi help in such searches?
+
+HFApi is a Python class with the following methods:
+
+-dataset_info(repo_id: str, ...):  given the id of a repository available in HF,
+I can get information about datasets and models [GOAL #1, #2];
+-get_dataset_tags(repo_id: str, ...): gets all valid dataset tags as a nested 
+namespace object
+    - Perform searches on datasets' TAGS
+- get_model_tags(repo_id: str, ...) : same as get_dataset_tags, but for models
+    - Perform searches on models' TAGS
+-  list_datasets(filter, ...): gets all valid model tags as a nested namespace 
+object based on a filter.
+    - Can perform searches for datasets using their TAGS as filters
+- list_models(filter, ...): same as list_datasets, but for models
+    - Can perform searches for models using their TAGS as filters
+- get_repo_discussions(repo_id: str, ...): fetches Discussions and Pull 
+Requests for the given repo.
+
+
+ 
