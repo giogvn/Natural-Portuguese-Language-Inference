@@ -1,7 +1,8 @@
 import datasets as ds
 
+from dataclasses import dataclass, field
+from typing import Optional
 import numpy as np
-import hydra
 from transformers import (
     XLMRobertaTokenizer,
     TrainingArguments,
@@ -11,48 +12,216 @@ from omegaconf import DictConfig
 import pandas as pd
 import evaluate
 
+HYPERPARAMETER_TUNING_MAX_TRAIN_SAMPLES = 1000
+HYPERPARAMETER_TUNING_MAX_EVAL_SAMPLES = 1000
+HYPERPARAMETER_TUNING_MAX_PREDICT_SAMPLES = 1000
+
+
+@dataclass
+class DataTrainingArguments:
+    """
+    Arguments pertaining to what data we are going to input our model for training and eval.
+
+    Using `HfArgumentParser` we can turn this class
+    into argparse arguments to be able to specify them on
+    the command line.
+    """
+
+    max_seq_length: Optional[int] = field(
+        default=128,
+        metadata={
+            "help": (
+                "The maximum total input sequence length after tokenization. Sequences longer "
+                "than this will be truncated, sequences shorter will be padded."
+            )
+        },
+    )
+    overwrite_cache: bool = field(
+        default=False,
+        metadata={"help": "Overwrite the cached preprocessed datasets or not."},
+    )
+    pad_to_max_length: bool = field(
+        default=True,
+        metadata={
+            "help": (
+                "Whether to pad all samples to `max_seq_length`. "
+                "If False, will pad the samples dynamically when batching to the maximum length in the batch."
+            )
+        },
+    )
+    max_train_samples: Optional[int] = field(
+        default=None,
+        metadata={
+            "help": (
+                "For debugging purposes or quicker training, truncate the number of training examples to this "
+                "value if set."
+            )
+        },
+    )
+    max_eval_samples: Optional[int] = field(
+        default=None,
+        metadata={
+            "help": (
+                "For debugging purposes or quicker training, truncate the number of evaluation examples to this "
+                "value if set."
+            )
+        },
+    )
+    max_predict_samples: Optional[int] = field(
+        default=None,
+        metadata={
+            "help": (
+                "For debugging purposes or quicker training, truncate the number of prediction examples to this "
+                "value if set."
+            )
+        },
+    )
+
+
+@dataclass
+class ModelArguments:
+    """
+    Arguments pertaining to which model/config/tokenizer we are going to fine-tune from.
+    """
+
+    model_name_or_path: str = field(
+        default=None,
+        metadata={
+            "help": "Path to pretrained model or model identifier from huggingface.co/models"
+        },
+    )
+    language: str = field(
+        default=None,
+        metadata={
+            "help": "Evaluation language. Also train language if `train_language` is set to None."
+        },
+    )
+    train_language: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "Train language if it is different from the evaluation language."
+        },
+    )
+    config_name: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "Pretrained config name or path if not the same as model_name"
+        },
+    )
+    tokenizer_name: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "Pretrained tokenizer name or path if not the same as model_name"
+        },
+    )
+    cache_dir: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "Where do you want to store the pretrained models downloaded from huggingface.co"
+        },
+    )
+    do_lower_case: Optional[bool] = field(
+        default=False,
+        metadata={
+            "help": "arg to indicate if tokenizer should do lower case in AutoTokenizer.from_pretrained()"
+        },
+    )
+    use_fast_tokenizer: bool = field(
+        default=True,
+        metadata={
+            "help": "Whether to use one of the fast tokenizer (backed by the tokenizers library) or not."
+        },
+    )
+    model_revision: str = field(
+        default="main",
+        metadata={
+            "help": "The specific model version to use (can be a branch name, tag name or commit id)."
+        },
+    )
+    use_auth_token: bool = field(
+        default=False,
+        metadata={
+            "help": (
+                "Will use the token generated when running `huggingface-cli login` (necessary to use this script "
+                "with private models)."
+            )
+        },
+    )
+    ignore_mismatched_sizes: bool = field(
+        default=False,
+        metadata={
+            "help": "Will enable to load a pretrained model whose head dimensions are different."
+        },
+    )
+
 
 class HuggingFaceLoader:
+    def __init__(self, config: DictConfig):
+        self.config = config
+
+    def get_model_name(self):
+        return self.config.model.name[0]
+
+    def get_model_config(self):
+        return self.config.dataset.subset[0]
+
+    def get_tokenizer_name(self):
+        return self.config.model.tokenizer[0]
+
+    def get_max_train_samples(self):
+        if self.config.hyperparameter_tuning[0]:
+            return HYPERPARAMETER_TUNING_MAX_TRAIN_SAMPLES
+        else:
+            return None
+
+    def get_max_eval_samples(self):
+        if self.config.hyperparameter_tuning[0]:
+            return HYPERPARAMETER_TUNING_MAX_EVAL_SAMPLES
+        else:
+            return None
+
+    def get_max_predict_samples(self):
+        if self.config.hyperparameter_tuning[0]:
+            return HYPERPARAMETER_TUNING_MAX_PREDICT_SAMPLES
+        else:
+            return None
+
     def load_train_dataset(
         self,
-        config: DictConfig,
     ):
         split = "train"
-        dataset_name = config.dataset.name[0]
-        subset = config.dataset.subset[0]
+        dataset_name = self.config.dataset.name[0]
+        subset = self.config.dataset.subset[0]
         return ds.load_dataset(dataset_name, subset, split=split)
 
-    def load_test_dataset(
-        self,
-        config: DictConfig,
-    ):
+    def load_test_dataset(self):
         split = "test"
-        dataset_name = config.dataset.name[0]
-        subset = config.dataset.subset[0]
+        dataset_name = self.config.dataset.name[0]
+        subset = self.config.dataset.subset[0]
         return ds.load_dataset(dataset_name, subset, split=split)
 
-    def get_model(self, config: DictConfig):
-        model_name = config.model.name[0]
-        model_type = config.model.type[0]
-        num_labels = int(config.dataset.num_labels[0])
+    def get_model(self):
+        model_name = self.config.model.name[0]
+        model_type = self.config.model.type[0]
+        num_labels = int(self.config.dataset.num_labels[0])
 
         if model_type == "XLMRobertaForSequenceClassification":
             return XLMRobertaForSequenceClassification.from_pretrained(
                 model_name, num_labels=num_labels
             )
 
-    def get_tokenizer(self, config: DictConfig):
-        tokenizer = config.model.tokenizer[0]
+    def get_tokenizer(self):
+        tokenizer = self.config.model.tokenizer[0]
         if tokenizer == "xlmR_tokenizer":
             return self.xlmR_tokenizer
 
-    def get_metric(self, config: DictConfig):
-        metric_name = config.hyperparameter.metric[0]
+    def get_metric(self):
+        metric_name = self.config.hyperparameter.metric[0]
         return evaluate.load(metric_name)
 
-    def get_training_args(self, config: DictConfig):
-        output_dir = config.output.output_dir[0]
-        eval_strat = config.hyperparameter.evaluation_strategy[0]
+    def get_training_args(self):
+        output_dir = self.config.output.output_dir[0]
+        eval_strat = self.config.hyperparameter.evaluation_strategy[0]
         return TrainingArguments(output_dir=output_dir, evaluation_strategy=eval_strat)
 
     def xlmR_tokenizer(self, input: dict) -> list:

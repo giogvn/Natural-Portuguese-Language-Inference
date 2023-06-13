@@ -3,4 +3,4 @@ name:
 type:
   - XLMRobertaForSequenceClassification
 tokenizer:
-  - xlmR_tokenizer
+  - XLMRobertaTokenizer
