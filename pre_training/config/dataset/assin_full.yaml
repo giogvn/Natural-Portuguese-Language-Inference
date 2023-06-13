@@ -1,0 +1,6 @@
+name:
+  - assin
+subset:
+  - full
+num_labels:
+  - 3

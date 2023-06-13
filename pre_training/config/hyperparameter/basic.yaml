@@ -1,0 +1,10 @@
+batches:
+  - 8
+learning_rate:
+  - 0.00005
+num_epochs:
+  - 3
+metric:
+  - accuracy
+evaluation_strategy:
+  - epoch

@@ -1,20 +1,65 @@
-from datasets import (
-    load_dataset_builder,
-    get_dataset_split_names,
-    get_dataset_config_names,
-)
+import datasets as ds
 
 import numpy as np
-from transformers import XLMRobertaTokenizer, XLMRobertaForSequenceClassification
+import hydra
+from transformers import (
+    XLMRobertaTokenizer,
+    TrainingArguments,
+    XLMRobertaForSequenceClassification,
+)
+from omegaconf import DictConfig
 import pandas as pd
 import evaluate
 
 
-def compute_metrics(pred: tuple, metric_name: str = "accuracy"):
-    metric = evaluate.load(metric_name)
-    logits, labels = pred
-    predictions = np.argmax(logits, axis=-1)
-    return metric.compute(predictions=predictions, references=labels)
+class HuggingFaceLoader:
+    def load_train_dataset(
+        self,
+        config: DictConfig,
+    ):
+        split = "train"
+        dataset_name = config.dataset.name[0]
+        subset = config.dataset.subset[0]
+        return ds.load_dataset(dataset_name, subset, split=split)
+
+    def load_test_dataset(
+        self,
+        config: DictConfig,
+    ):
+        split = "test"
+        dataset_name = config.dataset.name[0]
+        subset = config.dataset.subset[0]
+        return ds.load_dataset(dataset_name, subset, split=split)
+
+    def get_model(self, config: DictConfig):
+        model_name = config.model.name[0]
+        model_type = config.model.type[0]
+        num_labels = int(config.dataset.num_labels[0])
+
+        if model_type == "XLMRobertaForSequenceClassification":
+            return XLMRobertaForSequenceClassification.from_pretrained(
+                model_name, num_labels=num_labels
+            )
+
+    def get_tokenizer(self, config: DictConfig):
+        tokenizer = config.model.tokenizer[0]
+        if tokenizer == "xlmR_tokenizer":
+            return self.xlmR_tokenizer
+
+    def get_metric(self, config: DictConfig):
+        metric_name = config.hyperparameter.metric[0]
+        return evaluate.load(metric_name)
+
+    def get_training_args(self, config: DictConfig):
+        output_dir = config.output.output_dir[0]
+        eval_strat = config.hyperparameter.evaluation_strategy[0]
+        return TrainingArguments(output_dir=output_dir, evaluation_strategy=eval_strat)
+
+    def xlmR_tokenizer(self, input: dict) -> list:
+        tokenizer = XLMRobertaTokenizer.from_pretrained("xlm-roberta-base")
+        return tokenizer(
+            input["premise"], input["hypothesis"], padding="max_length", truncation=True
+        )
 
 
 def get_dataset_splits_and_configs(
@@ -38,13 +83,6 @@ def get_xlmR_pairs_to_tokenize(
         pairs.append([hyp_prem, ent])
 
     return pairs
-
-
-def xlmR_tokenizer(input: dict) -> list:
-    tokenizer = XLMRobertaTokenizer.from_pretrained("xlm-roberta-base")
-    return tokenizer(
-        input["premise"], input["hypothesis"], padding="max_length", truncation=True
-    )
 
 
 def get_xlmR_tokens(df: pd.DataFrame, tokenizer) -> list:

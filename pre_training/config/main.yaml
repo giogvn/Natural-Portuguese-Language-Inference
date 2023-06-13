@@ -1,0 +1,6 @@
+defaults:
+  - model: xlmr_base
+  - dataset: assin_pt_br
+  - hyperparameter: basic
+  - output: model_path
+  - _self_

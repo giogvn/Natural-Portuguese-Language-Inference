@@ -1,0 +1,6 @@
+name:
+  - xlm-roberta-base
+type:
+  - XLMRobertaForSequenceClassification
+tokenizer:
+  - xlmR_tokenizer
