@@ -1,6 +1,8 @@
-name:
-  - assin
+max_train_samples:
+  - 100
+max_eval_samples:
+  - 100
+max_predict_samples:
+  - 100
 subset:
   - ptpt
-num_labels:
-  - 3

@@ -77,6 +77,15 @@ class DataTrainingArguments:
         },
     )
 
+    subset: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": (
+                "Defining the name of the dataset subset. For example, it can be the pt-br version of it."
+            )
+        },
+    )
+
 
 @dataclass
 class ModelArguments:
@@ -159,28 +168,55 @@ class HuggingFaceLoader:
     def __init__(self, config: DictConfig):
         self.config = config
 
-    def get_model_name(self):
-        return self.config.model.name[0]
+    def get_model_args(self) -> dict:
+        return {
+            "model_name_or_path": self.config.model.model_name_or_path[0],
+            "tokenizer": self.config.model.tokenizer[0],
+            "config": self.config.model.config_name[0],
+        }
 
-    def get_model_config(self):
+    def get_dataset_args(self) -> dict:
+        if self.config.training.hyperparameter_tuning[0]:
+            return {
+                "max_train_samples": HYPERPARAMETER_TUNING_MAX_TRAIN_SAMPLES,
+                "max_eval_samples": HYPERPARAMETER_TUNING_MAX_EVAL_SAMPLES,
+                "max_predict_samples": HYPERPARAMETER_TUNING_MAX_PREDICT_SAMPLES,
+                "subset": self.config.dataset.subset[0],
+            }
+        return {"subset": self.config.dataset.subset[0]}
+
+    def get_training_args(self) -> dict:
+        return {
+            "output_dir": self.config.training.checkpoints_and_preds[0],
+            "overwrite_output_dir": self.config.training.overwrite_output_dir[0],
+            "do_train": self.config.training.do_train[0],
+            "do_eval": self.config.training.do_eval[0],
+            "do_predict": self.config.training.do_predict[0],
+            "evaluation_strategy": self.config.training.evaluation_strategy[0],
+        }
+
+    def get_model_name(self) -> str:
+        return self.config.model.model_name_or_path[0]
+
+    def get_dataset_subset(self) -> str:
         return self.config.dataset.subset[0]
 
-    def get_tokenizer_name(self):
+    def get_tokenizer_name(self) -> str:
         return self.config.model.tokenizer[0]
 
-    def get_max_train_samples(self):
+    def get_max_train_samples(self) -> int:
         if self.config.hyperparameter_tuning[0]:
             return HYPERPARAMETER_TUNING_MAX_TRAIN_SAMPLES
         else:
             return None
 
-    def get_max_eval_samples(self):
+    def get_max_eval_samples(self) -> int:
         if self.config.hyperparameter_tuning[0]:
             return HYPERPARAMETER_TUNING_MAX_EVAL_SAMPLES
         else:
             return None
 
-    def get_max_predict_samples(self):
+    def get_max_predict_samples(self) -> int:
         if self.config.hyperparameter_tuning[0]:
             return HYPERPARAMETER_TUNING_MAX_PREDICT_SAMPLES
         else:
@@ -229,6 +265,9 @@ class HuggingFaceLoader:
         return tokenizer(
             input["premise"], input["hypothesis"], padding="max_length", truncation=True
         )
+
+    def get_checkpoints_and_preds_dir_name(self) -> str:
+        return self.config.output.checkpoints_and_preds[0]
 
 
 def get_dataset_splits_and_configs(

@@ -1,7 +1,7 @@
 defaults:
   - model: xlmr_base
-  - dataset: assin_pt_br
-  - hyperparameter: basic
+  - dataset: assin_pt_pt
+  - training: basic
   - output: model_path
   - hyperparameter_tuning: 1
   - _self_

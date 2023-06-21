@@ -60,20 +60,11 @@ def main(m_args: dict, d_args: dict, t_args: dict):
     # See all possible arguments in src/transformers/training_args.py
     # or by passing the --help flag to this script.
     # We now keep distinct sets of args, for a cleaner separation of concerns.
-    model_args = ModelArguments(
-        model_name_or_path=m_args["name"],
-        config_name=m_args["config"],
-        tokenizer_name=m_args["tokenizer"],
-    )
+    model_args = ModelArguments(**m_args)
 
-    data_args = DataTrainingArguments(
-        max_train_samples=d_args["max_train_samples"],
-        max_eval_samples=d_args["max_eval_samples"],
-        max_predict_samples=d_args["max_predict_samples"],
-    )
+    data_args = DataTrainingArguments(**d_args)
 
-    # TODO: pass the training hyperparameters defined in the t_args dict
-    training_args = TrainingArguments()
+    training_args = TrainingArguments(**t_args)
 
     parser = HfArgumentParser(
         (ModelArguments, DataTrainingArguments, TrainingArguments)
@@ -139,6 +130,7 @@ def main(m_args: dict, d_args: dict, t_args: dict):
             train_dataset = load_dataset(
                 "xnli",
                 model_args.language,
+                name=training_args.subset,
                 split="train",
                 cache_dir=model_args.cache_dir,
                 use_auth_token=True if model_args.use_auth_token else None,
@@ -147,6 +139,7 @@ def main(m_args: dict, d_args: dict, t_args: dict):
             train_dataset = load_dataset(
                 "xnli",
                 model_args.train_language,
+                name=training_args.subset,
                 split="train",
                 cache_dir=model_args.cache_dir,
                 use_auth_token=True if model_args.use_auth_token else None,
@@ -372,17 +365,7 @@ if __name__ == "__main__":
     initialize(config_path="config", version_base=None)
     config = compose(config_name="main")
     loader = HuggingFaceLoader(config)
-    m_args = {
-        "name": loader.get_model_name(),
-        "config": loader.get_model_config(),
-        "tokenizer": loader.get_tokenizer_name(),
-    }
-    d_args = {
-        "max_train_samples": loader.get_max_train_samples(),
-        "max_eval_samples": loader.get_max_eval_samples(),
-        "max_predict_samples": loader.get_max_predict_samples(),
-    }
-
-    # TODO: get tthe training configs from hydra's main using the loader
-    t_args = {}
+    m_args = loader.get_model_args()
+    d_args = loader.get_dataset_args()
+    t_args = loader.get_training_args()
     main(m_args, d_args, t_args)
