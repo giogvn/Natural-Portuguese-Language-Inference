@@ -170,9 +170,9 @@ class HuggingFaceLoader:
 
     def get_model_args(self) -> dict:
         return {
-            "model_name_or_path": self.config.model.model_name_or_path[0],
-            "tokenizer": self.config.model.tokenizer[0],
-            "config": self.config.model.config_name[0],
+            "model_name_or_path": self.config.model.model_name_or_path,
+            "tokenizer": self.config.model.tokenizer,
+            "config": self.config.model.config,
         }
 
     def get_dataset_args(self) -> dict:

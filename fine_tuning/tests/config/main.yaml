@@ -1,0 +1,5 @@
+defaults:
+  - model: generic
+  - dataset: generic
+  - training: generic
+  - _self_
