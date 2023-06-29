@@ -169,31 +169,13 @@ class HuggingFaceLoader:
         self.config = config
 
     def get_model_args(self) -> dict:
-        return {
-            "model_name_or_path": self.config.model.model_name_or_path,
-            "tokenizer": self.config.model.tokenizer,
-            "config": self.config.model.config,
-        }
+        return dict(self.config.model)
 
     def get_dataset_args(self) -> dict:
-        if self.config.training.hyperparameter_tuning[0]:
-            return {
-                "max_train_samples": HYPERPARAMETER_TUNING_MAX_TRAIN_SAMPLES,
-                "max_eval_samples": HYPERPARAMETER_TUNING_MAX_EVAL_SAMPLES,
-                "max_predict_samples": HYPERPARAMETER_TUNING_MAX_PREDICT_SAMPLES,
-                "subset": self.config.dataset.subset[0],
-            }
-        return {"subset": self.config.dataset.subset[0]}
+        return dict(self.config.dataset)
 
     def get_training_args(self) -> dict:
-        return {
-            "output_dir": self.config.training.checkpoints_and_preds[0],
-            "overwrite_output_dir": self.config.training.overwrite_output_dir[0],
-            "do_train": self.config.training.do_train[0],
-            "do_eval": self.config.training.do_eval[0],
-            "do_predict": self.config.training.do_predict[0],
-            "evaluation_strategy": self.config.training.evaluation_strategy[0],
-        }
+        return dict(self.config.training)
 
     def get_model_name(self) -> str:
         return self.config.model.model_name_or_path[0]
@@ -254,11 +236,6 @@ class HuggingFaceLoader:
     def get_metric(self):
         metric_name = self.config.hyperparameter.metric[0]
         return evaluate.load(metric_name)
-
-    def get_training_args(self):
-        output_dir = self.config.output.output_dir[0]
-        eval_strat = self.config.hyperparameter.evaluation_strategy[0]
-        return TrainingArguments(output_dir=output_dir, evaluation_strategy=eval_strat)
 
     def xlmR_tokenizer(self, input: dict) -> list:
         tokenizer = XLMRobertaTokenizer.from_pretrained("xlm-roberta-base")
