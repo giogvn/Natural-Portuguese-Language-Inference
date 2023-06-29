@@ -1,0 +1,5 @@
+dataset_name: assin
+subset: full
+hyperparameter_tuning: 0
+max_train_samples: None
+max_predict_samples: None

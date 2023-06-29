@@ -27,6 +27,25 @@ class DataTrainingArguments:
     the command line.
     """
 
+    dataset_name: Optional[str] = field(
+        default="assin",
+        metadata={"help": ("The name in HuggingFace of the dataset used for training")},
+    )
+
+    subset: Optional[str] = field(
+        default=None,
+        metadata={"help": ("Defining the name of the dataset configuration")},
+    )
+
+    hyperparameter_tuning: Optional[int] = field(
+        default=0,
+        metadata={
+            "help": (
+                "Interpreted as a boolean, defines if the hyperparameter tuning should be performed"
+            )
+        },
+    )
+
     max_seq_length: Optional[int] = field(
         default=128,
         metadata={
@@ -171,8 +190,8 @@ class HuggingFaceLoader:
     def get_model_args(self) -> dict:
         return dict(self.config.model)
 
-    def get_dataset_args(self) -> dict:
-        return dict(self.config.dataset)
+    def get_data_training_args(self) -> dict:
+        return dict(self.config.data_training)
 
     def get_training_args(self) -> dict:
         return dict(self.config.training)

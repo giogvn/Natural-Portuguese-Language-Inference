@@ -14,20 +14,21 @@ from typing import List
 @dataclass
 class ModelArgs:
     model_name_or_path: str
-    config: str
-    tokenizer: str
+    config_name: str
+    tokenizer_name: str
 
 
 @dataclass
-class DatasetArgs:
-    name: str
+class DataTrainingArgs:
+    dataset_name: str
+    hyperparameter_tuning: int
     subset: str
-    num_labels: int
+    max_train_samples: int
+    max_predict_samples: int
 
 
 @dataclass
 class TrainingArgs:
-    hyperparameter_tuning: int
     output_dir: str
     overwrite_output_dir: int
     do_train: int
@@ -47,20 +48,25 @@ def loader():
 def generic_model_args():
     return {
         "model_name_or_path": "model_name",
-        "tokenizer": "tokenizer_name",
-        "config": "config_name",
+        "tokenizer_name": "tokenizer_name",
+        "config_name": "config_name",
     }
 
 
 @pytest.fixture
-def generic_dataset_args():
-    return {"name": "dataset_name", "subset": "subset_name", "num_labels": 1}
+def generic_data_training_args():
+    return {
+        "dataset_name": "dataset_name",
+        "subset": "subset_name",
+        "hyperparameter_tuning": 0,
+        "max_train_samples": 1,
+        "max_predict_samples": 1,
+    }
 
 
 @pytest.fixture
 def generic_training_args():
     return {
-        "hyperparameter_tuning": 0,
         "output_dir": "output_dir",
         "overwrite_output_dir": 1,
         "do_train": 1,
@@ -76,8 +82,8 @@ def generic_model_obj(generic_model_args):
 
 
 @pytest.fixture
-def generic_dataset_obj(generic_dataset_args):
-    return DatasetArgs(**generic_dataset_args)
+def generic_data_training_obj(generic_data_training_args):
+    return DataTrainingArgs(**generic_data_training_args)
 
 
 @pytest.fixture
@@ -85,7 +91,9 @@ def generic_training_obj(generic_training_args):
     return TrainingArgs(**generic_training_args)
 
 
-def write_yaml_file(path: Path, data: ModelArgs | DatasetArgs | TrainingArgs) -> None:
+def write_yaml_file(
+    path: Path, data: ModelArgs | DataTrainingArgs | TrainingArgs
+) -> None:
     with open(path, "w") as f:
         OmegaConf.save(data, f)
 
@@ -93,18 +101,20 @@ def write_yaml_file(path: Path, data: ModelArgs | DatasetArgs | TrainingArgs) ->
 def test_loader_should_return_the_right_args(
     loader,
     generic_model_obj,
-    generic_dataset_obj,
+    generic_data_training_obj,
     generic_training_obj,
     generic_model_args,
-    generic_dataset_args,
+    generic_data_training_args,
     generic_training_args,
 ):
     generic_configs_path = Path("../config")
     file_name = "generic.yaml"
     write_yaml_file(generic_configs_path / "model" / file_name, generic_model_obj)
-    write_yaml_file(generic_configs_path / "dataset" / file_name, generic_dataset_obj)
+    write_yaml_file(
+        generic_configs_path / "data_training" / file_name, generic_data_training_obj
+    )
     write_yaml_file(generic_configs_path / "training" / file_name, generic_training_obj)
 
     assert loader.get_model_args() == generic_model_args
-    assert loader.get_dataset_args() == generic_dataset_args
+    assert loader.get_data_training_args() == generic_data_training_args
     assert loader.get_training_args() == generic_training_args

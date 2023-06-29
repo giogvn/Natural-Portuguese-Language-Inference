@@ -1,0 +1,6 @@
+output_dir: output_dir
+overwrite_output_dir: 1
+do_train: 1
+do_eval: 1
+do_predict: 1
+evaluation_strategy: evaluation_strategy

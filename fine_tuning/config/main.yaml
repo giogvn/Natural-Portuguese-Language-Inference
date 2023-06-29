@@ -1,6 +1,5 @@
 defaults:
   - model: xlmr_base
-  - dataset: assin_pt_pt
+  - data_training: no_max_train_predict_samples
   - training: basic
-  - output: model_path
   - _self_

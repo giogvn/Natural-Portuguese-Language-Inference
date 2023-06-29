@@ -1,14 +1,6 @@
-hyperparameter_tuning:
-  - 1
-output_dir:
-  - checkpoints_and_preds
-overwrite_output_dir:
-  - 1
-do_train:
-  - 1
-do_eval:
-  - 1
-do_predict:
-  - 1
-evaluation_strategy:
-  - epochs
+output_dir: checkpoints_and_preds
+overwrite_output_dir: 1
+do_train: 1
+do_eval: 1
+do_predict: 1
+evaluation_strategy: epoch
