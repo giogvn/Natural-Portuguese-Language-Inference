@@ -32,6 +32,22 @@ class DataTrainingArguments:
         metadata={"help": ("The name in HuggingFace of the dataset used for training")},
     )
 
+    evaluation: dict[str, str] = field(
+        default="accuracy",
+        metadata={
+            "help": (
+                "The name of the metric in the HuggingFace Hub to be used in the model evaluation along with its subset's name "
+            )
+        },
+    )
+
+    rename_columns: Optional[dict[str, str]] = field(
+        default=None,
+        metadata={
+            "help": ("A mapping of dataset columns to rename to their new names")
+        },
+    )
+
     subset: Optional[str] = field(
         default=None,
         metadata={"help": ("Defining the name of the dataset configuration")},
@@ -101,6 +117,15 @@ class DataTrainingArguments:
         metadata={
             "help": (
                 "Defining the name of the dataset subset. For example, it can be the pt-br version of it."
+            )
+        },
+    )
+
+    label_names: dict[str, list[str]] = field(
+        default=None,
+        metadata={
+            "help": (
+                "The name of the labels in each dataset split available (usually train, validation and predict) "
             )
         },
     )

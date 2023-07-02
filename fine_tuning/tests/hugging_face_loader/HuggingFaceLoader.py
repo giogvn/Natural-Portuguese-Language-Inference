@@ -4,27 +4,11 @@ sys.path.append("../..")
 
 import pytest, yaml
 from hydra import compose, initialize
-from util import HuggingFaceLoader
+from util import HuggingFaceLoader, ModelArguments, DataTrainingArguments
 from pathlib import Path
 from dataclasses import dataclass
 from omegaconf import OmegaConf
 from typing import List
-
-
-@dataclass
-class ModelArgs:
-    model_name_or_path: str
-    config_name: str
-    tokenizer_name: str
-
-
-@dataclass
-class DataTrainingArgs:
-    dataset_name: str
-    hyperparameter_tuning: int
-    subset: str
-    max_train_samples: int
-    max_predict_samples: int
 
 
 @dataclass
@@ -61,6 +45,11 @@ def generic_data_training_args():
         "hyperparameter_tuning": 0,
         "max_train_samples": 1,
         "max_predict_samples": 1,
+        "label_names": {
+            "train_dataset": ["A", "B"],
+            "eval_dataset": ["A", "B"],
+            "predict_dataset": ["A", "B"],
+        },
     }
 
 
@@ -78,12 +67,12 @@ def generic_training_args():
 
 @pytest.fixture
 def generic_model_obj(generic_model_args):
-    return ModelArgs(**generic_model_args)
+    return ModelArguments(**generic_model_args)
 
 
 @pytest.fixture
 def generic_data_training_obj(generic_data_training_args):
-    return DataTrainingArgs(**generic_data_training_args)
+    return DataTrainingArguments(**generic_data_training_args)
 
 
 @pytest.fixture
@@ -92,8 +81,9 @@ def generic_training_obj(generic_training_args):
 
 
 def write_yaml_file(
-    path: Path, data: ModelArgs | DataTrainingArgs | TrainingArgs
+    path: Path, data: ModelArguments | DataTrainingArguments | TrainingArgs
 ) -> None:
+    print(data)
     with open(path, "w") as f:
         OmegaConf.save(data, f)
 

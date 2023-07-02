@@ -1,5 +1,21 @@
 dataset_name: assin
 subset: full
+evaluation:
+  path: glue
+  config_name: mnli
 hyperparameter_tuning: 0
-max_train_samples: None
-max_predict_samples: None
+rename_columns:
+  entailment_judgment: label
+label_names:
+  train_dataset:
+  - 'NONE'
+  - 'ENTAILMENT'
+  - 'PARAPHRASE'
+  eval_dataset:
+  - 'NONE'
+  - 'ENTAILMENT'
+  - 'PARAPHRASE'
+  predict_dataset:
+  - 'NONE'
+  - 'ENTAILMENT'
+  - 'PARAPHRASE'

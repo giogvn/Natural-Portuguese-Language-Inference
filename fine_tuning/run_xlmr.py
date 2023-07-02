@@ -32,7 +32,6 @@ from transformers import (
     AutoTokenizer,
     DataCollatorWithPadding,
     EvalPrediction,
-    HfArgumentParser,
     Trainer,
     TrainingArguments,
     default_data_collator,
@@ -61,16 +60,13 @@ def main(m_args: dict, d_args: dict, t_args: dict):
     # or by passing the --help flag to this script.
     # We now keep distinct sets of args, for a cleaner separation of concerns.
     model_args = ModelArguments(**m_args)
-
     data_args = DataTrainingArguments(**d_args)
-
     training_args = TrainingArguments(**t_args)
+    # parser = HfArgumentParser(
+    #    (ModelArguments, DataTrainingArguments, TrainingArguments)
+    # )
 
-    parser = HfArgumentParser(
-        (ModelArguments, DataTrainingArguments, TrainingArguments)
-    )
-    model_args, data_args, training_args = parser.parse_args_into_dataclasses()
-
+    # model_args, data_args, training_args = parser.parse_args_into_dataclasses()
     # Sending telemetry. Tracking the example usage helps us better allocate resources to maintain them. The
     # information sent is the one passed as arguments along with your Python/PyTorch versions.
     send_example_telemetry("run_xnli", model_args)
@@ -126,46 +122,47 @@ def main(m_args: dict, d_args: dict, t_args: dict):
     # download the dataset.
     # Downloading and loading xnli dataset from the hub.
     if training_args.do_train:
-        if model_args.train_language is None:
+        if data_args.subset is None:
             train_dataset = load_dataset(
-                "xnli",
-                model_args.language,
-                name=training_args.subset,
+                data_args.dataset_name,
                 split="train",
                 cache_dir=model_args.cache_dir,
                 use_auth_token=True if model_args.use_auth_token else None,
             )
         else:
             train_dataset = load_dataset(
-                "xnli",
-                model_args.train_language,
-                name=training_args.subset,
+                data_args.dataset_name,
+                name=data_args.subset,
                 split="train",
                 cache_dir=model_args.cache_dir,
                 use_auth_token=True if model_args.use_auth_token else None,
             )
-        label_list = train_dataset.features["label"].names
+        label_list = data_args.label_names["train_dataset"]
 
     if training_args.do_eval:
-        load_dataset()
         eval_dataset = load_dataset(
-            "xnli",
-            model_args.language,
+            data_args.dataset_name,
+            name=data_args.subset,
             split="validation",
             cache_dir=model_args.cache_dir,
             use_auth_token=True if model_args.use_auth_token else None,
         )
-        label_list = eval_dataset.features["label"].names
+        label_list = data_args.label_names["eval_dataset"]
 
     if training_args.do_predict:
         predict_dataset = load_dataset(
-            "xnli",
-            model_args.language,
+            data_args.dataset_name,
+            name=data_args.subset,
             split="test",
             cache_dir=model_args.cache_dir,
             use_auth_token=True if model_args.use_auth_token else None,
         )
-        label_list = predict_dataset.features["label"].names
+        label_list = data_args.label_names["predict_dataset"]
+
+    if data_args.rename_columns is not None:
+        train_dataset = train_dataset.rename_columns(data_args.rename_columns)
+        eval_dataset = eval_dataset.rename_columns(data_args.rename_columns)
+        predict_dataset = predict_dataset.rename_columns(data_args.rename_columns)
 
     # Labels
     num_labels = len(label_list)
@@ -186,7 +183,7 @@ def main(m_args: dict, d_args: dict, t_args: dict):
         use_auth_token=True if model_args.use_auth_token else None,
     )
     tokenizer = AutoTokenizer.from_pretrained(
-        model_args.tokenizer_name
+        model_args.model_name_or_path
         if model_args.tokenizer_name
         else model_args.model_name_or_path,
         do_lower_case=model_args.do_lower_case,
@@ -269,7 +266,7 @@ def main(m_args: dict, d_args: dict, t_args: dict):
             )
 
     # Get the metric function
-    metric = evaluate.load("xnli")
+    metric = evaluate.load(**data_args.evaluation)
 
     # You can define your custom compute_metrics function. It takes an `EvalPrediction` object (a namedtuple with a
     # predictions and label_ids field) and has to return a dictionary string to float.
@@ -366,6 +363,6 @@ if __name__ == "__main__":
     config = compose(config_name="main")
     loader = HuggingFaceLoader(config)
     m_args = loader.get_model_args()
-    d_args = loader.get_dataset_args()
+    d_args = loader.get_data_training_args()
     t_args = loader.get_training_args()
     main(m_args, d_args, t_args)

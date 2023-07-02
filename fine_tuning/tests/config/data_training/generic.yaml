@@ -3,3 +3,13 @@ hyperparameter_tuning: 0
 subset: subset_name
 max_train_samples: 1
 max_predict_samples: 1
+label_names:
+  train_dataset:
+  - A
+  - B
+  eval_dataset:
+  - A
+  - B
+  predict_dataset:
+  - A
+  - B
