@@ -8,14 +8,14 @@ rename_columns:
   entailment_judgment: label
 label_names:
   train_dataset:
-  - 'NONE'
-  - 'ENTAILMENT'
-  - 'PARAPHRASE'
+    0: NONE
+    1: ENTAILMENT
+    2: PARAPHRASE
   eval_dataset:
-  - 'NONE'
-  - 'ENTAILMENT'
-  - 'PARAPHRASE'
+    0: NONE
+    1: ENTAILMENT
+    2: PARAPHRASE
   predict_dataset:
-  - 'NONE'
-  - 'ENTAILMENT'
-  - 'PARAPHRASE'
+    0: NONE
+    1: ENTAILMENT
+    2: PARAPHRASE

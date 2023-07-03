@@ -160,9 +160,12 @@ def main(m_args: dict, d_args: dict, t_args: dict):
         label_list = data_args.label_names["predict_dataset"]
 
     if data_args.rename_columns is not None:
-        train_dataset = train_dataset.rename_columns(data_args.rename_columns)
-        eval_dataset = eval_dataset.rename_columns(data_args.rename_columns)
-        predict_dataset = predict_dataset.rename_columns(data_args.rename_columns)
+        if training_args.do_train:
+            train_dataset = train_dataset.rename_columns(data_args.rename_columns)
+        if training_args.do_eval:
+            eval_dataset = eval_dataset.rename_columns(data_args.rename_columns)
+        if training_args.do_predict:
+            predict_dataset = predict_dataset.rename_columns(data_args.rename_columns)
 
     # Labels
     num_labels = len(label_list)
@@ -354,6 +357,8 @@ def main(m_args: dict, d_args: dict, t_args: dict):
             with open(output_predict_file, "w") as writer:
                 writer.write("index\tprediction\n")
                 for index, item in enumerate(predictions):
+                    if not type(list(label_list.keys())[0]) == type(item):
+                        item = type(list(label_list.keys())[0])(item)
                     item = label_list[item]
                     writer.write(f"{index}\t{item}\n")
 
