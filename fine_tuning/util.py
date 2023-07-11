@@ -18,6 +18,53 @@ HYPERPARAMETER_TUNING_MAX_PREDICT_SAMPLES = 1000
 
 
 @dataclass
+class HyperparameterTuningArguments:
+    """
+    Arguments pertaining to what hyperparameters we are going to tune
+
+    """
+
+    method: str = field(
+        default="random",
+        metadata={"help": ("The hyperparameter search strategy.")},
+    )
+
+    epochs: dict[str, list[int] | float | int | str] = field(
+        default={"values": [3]},
+        metadata={
+            "help": ("The number of complete passes through the training dataset.")
+        },
+    )
+
+    batch_size: dict[str, list[int] | float | int | str] = field(
+        default={"values": [32, 64]},
+        metadata={
+            "help": (
+                "The number of training samples to work through before the model's internal parameters are updated"
+            )
+        },
+    )
+
+    learning_rate: dict[str, list[int] | float | int | str] = field(
+        default={"distribution": "log_uniform_values", "min": 1e-5, "max": 1e-3},
+        metadata={
+            "help": (
+                "The pace at which the gradient descent updates the network's parameters"
+            )
+        },
+    )
+
+    weight_decay: dict[str, list[int | float] | float | int | str] = field(
+        default={"values": [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]},
+        metadata={
+            "help": (
+                "The penalization parameter directly proportional do a model's complexity added to its loss function"
+            )
+        },
+    )
+
+
+@dataclass
 class DataTrainingArguments:
     """
     Arguments pertaining to what data we are going to input our model for training and eval.
@@ -211,6 +258,9 @@ class ModelArguments:
 class HuggingFaceLoader:
     def __init__(self, config: DictConfig):
         self.config = config
+
+    def get_hyperparameter_tuning_args(self) -> dict:
+        return dict(self.config.hyperparameter_tuning)
 
     def get_model_args(self) -> dict:
         return dict(self.config.model)

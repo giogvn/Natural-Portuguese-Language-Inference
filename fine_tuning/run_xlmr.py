@@ -40,9 +40,14 @@ from transformers import (
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version, send_example_telemetry
 from transformers.utils.versions import require_version
-from util import ModelArguments, DataTrainingArguments, HuggingFaceLoader
+from util import (
+    ModelArguments,
+    DataTrainingArguments,
+    HyperparameterTuningArguments,
+    HuggingFaceLoader,
+)
 from hydra import compose, initialize
-
+from hyperparameter_search import hyperparameter_opt
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 check_min_version("4.31.0.dev0")
@@ -55,13 +60,14 @@ require_version(
 logger = logging.getLogger(__name__)
 
 
-def main(m_args: dict, d_args: dict, t_args: dict):
+def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict):
     # See all possible arguments in src/transformers/training_args.py
     # or by passing the --help flag to this script.
     # We now keep distinct sets of args, for a cleaner separation of concerns.
     model_args = ModelArguments(**m_args)
     data_args = DataTrainingArguments(**d_args)
     training_args = TrainingArguments(**t_args)
+    hyperparameter_tuning_args = HyperparameterTuningArguments(**h_args)
     # parser = HfArgumentParser(
     #    (ModelArguments, DataTrainingArguments, TrainingArguments)
     # )
@@ -195,15 +201,19 @@ def main(m_args: dict, d_args: dict, t_args: dict):
         revision=model_args.model_revision,
         use_auth_token=True if model_args.use_auth_token else None,
     )
-    model = AutoModelForSequenceClassification.from_pretrained(
-        model_args.model_name_or_path,
-        from_tf=bool(".ckpt" in model_args.model_name_or_path),
-        config=config,
-        cache_dir=model_args.cache_dir,
-        revision=model_args.model_revision,
-        use_auth_token=True if model_args.use_auth_token else None,
-        ignore_mismatched_sizes=model_args.ignore_mismatched_sizes,
-    )
+
+    def get_model():
+        return AutoModelForSequenceClassification.from_pretrained(
+            model_args.model_name_or_path,
+            from_tf=bool(".ckpt" in model_args.model_name_or_path),
+            config=config,
+            cache_dir=model_args.cache_dir,
+            revision=model_args.model_revision,
+            use_auth_token=True if model_args.use_auth_token else None,
+            ignore_mismatched_sizes=model_args.ignore_mismatched_sizes,
+        )
+
+    model = get_model()
 
     # Preprocessing the datasets
     # Padding strategy
@@ -297,6 +307,23 @@ def main(m_args: dict, d_args: dict, t_args: dict):
         data_collator=data_collator,
     )
 
+    if data_args.hyperparameter_tuning:
+        sweep_config = {"method": hyperparameter_tuning_args.method}
+
+        # TODO: insert the other keys in sweep_config that represent the other
+        # hyperparameters to be tuned
+
+        hyp_opt_trainer = Trainer(
+            model_init=get_model,
+            args=training_args,
+            train_dataset=train_dataset if training_args.do_train else None,
+            eval_dataset=eval_dataset if training_args.do_eval else None,
+            compute_metrics=compute_metrics,
+            tokenizer=tokenizer,
+            data_collator=data_collator,
+        )
+        hyperparameter_opt(hyp_opt_trainer)
+
     # Training
     if training_args.do_train:
         checkpoint = None
@@ -370,4 +397,5 @@ if __name__ == "__main__":
     m_args = loader.get_model_args()
     d_args = loader.get_data_training_args()
     t_args = loader.get_training_args()
-    main(m_args, d_args, t_args)
+    h_args = loader.get_hyperparameter_tuning_args()
+    main(m_args, d_args, t_args, h_args)

@@ -1,5 +1,6 @@
 defaults:
   - model: xlmr_base
   - data_training: no_max_train_predict_samples
+  - hyperparameter_tuning: basic
   - training: basic
   - _self_
