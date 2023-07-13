@@ -29,7 +29,12 @@ class HyperparameterTuningArguments:
         metadata={"help": ("The hyperparameter search strategy.")},
     )
 
-    epochs: dict[str, list[int] | float | int | str] = field(
+    parameters: dict[str, dict] = field(
+        default={},
+        metadata={"help": ("The hyperparameters that will be tuned.")},
+    )
+
+    """epochs: dict[str, list[int] | float | int | str] = field(
         default={"values": [3]},
         metadata={
             "help": ("The number of complete passes through the training dataset.")
@@ -61,7 +66,7 @@ class HyperparameterTuningArguments:
                 "The penalization parameter directly proportional do a model's complexity added to its loss function"
             )
         },
-    )
+    )"""
 
 
 @dataclass

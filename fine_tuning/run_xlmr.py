@@ -309,9 +309,7 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict):
 
     if data_args.hyperparameter_tuning:
         sweep_config = {"method": hyperparameter_tuning_args.method}
-
-        # TODO: insert the other keys in sweep_config that represent the other
-        # hyperparameters to be tuned
+        sweep_config["parameters"] = hyperparameter_tuning_args.parameters
 
         hyp_opt_trainer = Trainer(
             model_init=get_model,
@@ -325,6 +323,9 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict):
         hyperparameter_opt(hyp_opt_trainer)
 
     # Training
+
+    # TODO: define ad-hoc function to compute accuracy and other metrics during
+    # training
     if training_args.do_train:
         checkpoint = None
         if training_args.resume_from_checkpoint is not None:

@@ -10,6 +10,9 @@ from dataclasses import dataclass
 from omegaconf import OmegaConf
 from typing import List
 
+# TODO: update tests to deal with changes in the configuration files structure
+# TODO: add test to the util's HyperparameterTuningArguments loader
+
 
 @dataclass
 class TrainingArgs:
