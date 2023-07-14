@@ -1,61 +1,47 @@
-"""
-This example is uses the official
-huggingface transformers `hyperparameter_search` API.
-"""
-import os
+from util import HyperparameterTuningArguments
+import wandb
+from transformers import TrainingArguments, Trainer
 
-from ray import tune
-from ray.air.config import CheckpointConfig
-from ray.tune import CLIReporter
-from ray.tune.schedulers import ASHAScheduler
-from transformers import Trainer
+class HyperparameterTuner:
+    def __init__(self, args: HyperparameterTuningArguments, 
+                 train_dataset, eval_dataset, metrics_computer: callable, 
+                 collate_func: callable, model_getter: callable):
+        self.config = args.sweep_config
+        self.training_args = args.training_args
+        self.train_dataset = train_dataset
+        self.eval_dataset = eval_dataset
+        self.metrics_computer = metrics_computer
+        self.model_getter = model_getter
+        self.collate_func = collate_func
+    
+    def train(self, config = None):
+        with wandb.init(config=config):
+            self.config = wandb.config
 
-"""Uses the Population Based Training Algorithm (https://www.deepmind.com/blog/population-based-training-of-neural-networks) 
-to search for the best hyperparameters of a model"""
+            training_args = TrainingArguments(
+                output_dir=self.training_args.output_dir
+                report_to=self.training_args.report_to,  # Turn on Weights & Biases logging
+                num_train_epochs=self.config.epochs,
+                learning_rate=self.config.learning_rate,
+                weight_decay=self.config.weight_decay,
+                per_device_train_batch_size=self.config.batch_size,
+                per_device_eval_batch_size=16,
+                save_strategy=self.training_args.save_strategy,
+                evaluation_strategy=self.training_args.evaluation_strategy,
+                logging_strategy=self.training_args.logging_strategy,
+                load_best_model_at_end=self.training_args.load_best_model_at_end,
+                remove_unused_columns=self.training_args.remove_unused_columns,
+                fp16=self.training_args.fp16
+        )
 
+            trainer = Trainer(
+                model_init=self.model_getter,
+                args=training_args,
+                data_collator=self.collate_func,
+                train_dataset=self.train_dataset,
+                eval_dataset=self.eval_dataset,
+                compute_metrics=self.metrics_computer
+            )
 
-def hyperparameter_opt(
-    trainer: Trainer,
-    gpus_per_trial: int = 1,
-    smoke_test: bool = False,
-    num_samples: int = 8,
-):
-    tune_config = {
-        "per_device_train_batch_size": 32,
-        "per_device_eval_batch_size": 32,
-        "num_train_epochs": tune.choice([2, 3, 4, 5]),
-        "max_steps": 1 if smoke_test else -1,  # Used for smoke test.
-    }
+            trainer.train()
 
-    scheduler = ASHAScheduler(
-        time_attr="training_iteration",
-        metric="eval_acc",
-        mode="max",
-        max_t=100,
-        grace_period=10,
-        reduction_factor=3,
-        brackets=1,
-    )
-
-    reporter = CLIReporter(
-        parameter_columns={
-            "weight_decay": "w_decay",
-            "learning_rate": "lr",
-            "per_device_train_batch_size": "train_bs/gpu",
-            "num_train_epochs": "num_epochs",
-        },
-        metric_columns=["eval_acc", "eval_loss", "epoch", "training_iteration"],
-    )
-
-    trainer.hyperparameter_search(
-        hp_space=lambda _: tune_config,
-        backend="ray",
-        n_trials=num_samples,
-        resources_per_trial={"cpu": 1, "gpu": gpus_per_trial},
-        scheduler=scheduler,
-        stop={"training_iteration": 1} if smoke_test else None,
-        progress_reporter=reporter,
-        local_dir="~/ray_results/",
-        name="tune_transformer_pbt",
-        log_to_file=True,
-    )

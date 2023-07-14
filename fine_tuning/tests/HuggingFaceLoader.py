@@ -10,9 +10,6 @@ from pathlib import Path
 from dataclasses import dataclass
 from omegaconf import OmegaConf
 
-# TODO: update tests to deal with changes in the configuration files structure
-# TODO: add test to the util's HyperparameterTuningArguments loader
-
 
 @dataclass
 class TrainingArgs:
@@ -74,12 +71,24 @@ def generic_data_training_args():
 @pytest.fixture
 def generic_hyperparameter_tuning_args():
     return {
-        "method": "method",
-        "parameters": {
-            "epochs": {"values": [1]},
-            "batch_size": {"values": [8, 16, 32, 64]},
-            "learning_rate": {"distribution": "distribution", "min": 0, "max": 1},
-            "weight_decay": {"values": [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]},
+        "training_args": {
+            "output_dir": "output_dir",
+            "report_to": "report_to",
+            "save_strategy": "save_strategy",
+            "evaluation_strategy": "evaluation_strategy",
+            "logging_strategy": "logging_strategy",
+            "load_best_model_at_end": 1,
+            "remove_unused_columns": 0,
+            "fp16": 1,
+        },
+        "sweep_config": {
+            "method": "method",
+            "parameters": {
+                "epochs": {"values": [1]},
+                "batch_size": {"values": [8, 16, 32, 64]},
+                "learning_rate": {"distribution": "distribution", "min": 0, "max": 1},
+                "weight_decay": {"values": [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]},
+            },
         },
     }
 

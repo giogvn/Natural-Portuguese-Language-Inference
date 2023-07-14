@@ -1,23 +1,33 @@
-method: random
-parameters:
-    epochs:
-        values: 
-            - 1
-    batch_size:
-        values:
-            - 8
-            - 16
-            - 32
-            - 64
-    learning_rate:
-        distribution: log_uniform_values
-        min: 1e-5
-        max: 1e-3
-    weight_decay:
-        values:
-            - 0.0
-            - 0.1
-            - 0.2
-            - 0.3
-            - 0.4
-            - 0.5
+training_args:
+    output_dir: vit-sweeps,
+    report_to: wandb
+    save_strategy: epoch
+    evaluation_strategy: epoch
+    logging_strategy: epoch
+    load_best_model_at_end: 1
+    remove_unused_columns: 0
+    fp16: 1
+sweep_config:
+    method: random
+    parameters:
+        epochs:
+            values: 
+                - 1
+        batch_size:
+            values:
+                - 8
+                - 16
+                - 32
+                - 64
+        learning_rate:
+            distribution: log_uniform_values
+            min: 1e-5
+            max: 1e-3
+        weight_decay:
+            values:
+                - 0.0
+                - 0.1
+                - 0.2
+                - 0.3
+                - 0.4
+                - 0.5

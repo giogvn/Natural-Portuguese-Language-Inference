@@ -24,8 +24,9 @@ import sys
 import datasets
 import evaluate
 import numpy as np
-from datasets import load_dataset
+from datasets import load_dataset, load_metric
 import transformers
+import wandb
 from transformers import (
     AutoConfig,
     AutoModelForSequenceClassification,
@@ -47,7 +48,7 @@ from util import (
     HuggingFaceLoader,
 )
 from hydra import compose, initialize
-from hyperparameter_search import hyperparameter_opt
+from hyperparameter_search import HyperparameterTuner
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 check_min_version("4.31.0.dev0")
@@ -279,14 +280,44 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict):
             )
 
     # Get the metric function
-    metric = evaluate.load(**data_args.evaluation)
 
     # You can define your custom compute_metrics function. It takes an `EvalPrediction` object (a namedtuple with a
     # predictions and label_ids field) and has to return a dictionary string to float.
     def compute_metrics(p: EvalPrediction):
+        metrics = dict()
+
+        accuracy_metric = load_metric("accuracy")
+        precision_metric = load_metric("precision")
+        recall_metric = load_metric("recall")
+        f1_metric = load_metric("f1")
+
+        labels = p.label_ids
+        logits = p.predictions[0] if isinstance(p.predictions, tuple) else p.predictions
+        preds = np.argmax(logits, axis=-1)
+
+        metrics.update(accuracy_metric.compute(predictions=preds, references=labels))
+        metrics.update(
+            precision_metric.compute(
+                predictions=preds, references=labels, average="weighted"
+            )
+        )
+        metrics.update(
+            recall_metric.compute(
+                predictions=preds, references=labels, average="weighted"
+            )
+        )
+        metrics.update(
+            f1_metric.compute(predictions=preds, references=labels, average="weighted")
+        )
+
+        return metrics
+
+    """
+    metric = evaluate.load(**data_args.evaluation)
+    def compute_metrics(p: EvalPrediction):
         preds = p.predictions[0] if isinstance(p.predictions, tuple) else p.predictions
         preds = np.argmax(preds, axis=1)
-        return metric.compute(predictions=preds, references=p.label_ids)
+        return metric.compute(predictions=preds, references=p.label_ids)"""
 
     # Data collator will default to DataCollatorWithPadding, so we change it if we already did the padding.
     if data_args.pad_to_max_length:
@@ -308,24 +339,20 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict):
     )
 
     if data_args.hyperparameter_tuning:
-        sweep_config = {"method": hyperparameter_tuning_args.method}
-        sweep_config["parameters"] = hyperparameter_tuning_args.parameters
-
-        hyp_opt_trainer = Trainer(
-            model_init=get_model,
-            args=training_args,
-            train_dataset=train_dataset if training_args.do_train else None,
-            eval_dataset=eval_dataset if training_args.do_eval else None,
-            compute_metrics=compute_metrics,
-            tokenizer=tokenizer,
-            data_collator=data_collator,
+        sweep_id = wandb.sweep(
+            hyperparameter_tuning_args.sweep_config, project="vit-snacks-sweeps"
         )
-        hyperparameter_opt(hyp_opt_trainer)
+        hyperparameter_tuner = HyperparameterTuner(
+            hyperparameter_tuning_args,
+            train_dataset,
+            eval_dataset,
+            compute_metrics,
+            data_collator,
+            get_model,
+        )
 
-    # Training
+        wandb.agent(sweep_id, hyperparameter_tuner.train, count=20)
 
-    # TODO: define ad-hoc function to compute accuracy and other metrics during
-    # training
     if training_args.do_train:
         checkpoint = None
         if training_args.resume_from_checkpoint is not None:

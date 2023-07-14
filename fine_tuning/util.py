@@ -24,14 +24,16 @@ class HyperparameterTuningArguments:
 
     """
 
-    method: str = field(
-        default="random",
-        metadata={"help": ("The hyperparameter search strategy.")},
+    training_args: dict = field(
+        default_factory=lambda: {},
+        metadata={"help": ("The training arguments that won't not be tuned.")},
     )
 
-    parameters: dict[str, dict] = field(
+    sweep_config: dict = field(
         default_factory=lambda: {},
-        metadata={"help": ("The hyperparameters that will be tuned.")},
+        metadata={
+            "help": ("The training arguments that will be tuned and the search method.")
+        },
     )
 
     """epochs: dict[str, list[int] | float | int | str] = field(
