@@ -30,7 +30,7 @@ class HyperparameterTuningArguments:
     )
 
     parameters: dict[str, dict] = field(
-        default={},
+        default_factory=lambda: {},
         metadata={"help": ("The hyperparameters that will be tuned.")},
     )
 
@@ -173,7 +173,7 @@ class DataTrainingArguments:
         },
     )
 
-    label_names: dict[str, list[str]] = field(
+    label_names: dict[str, dict] = field(
         default=None,
         metadata={
             "help": (
@@ -195,7 +195,7 @@ class ModelArguments:
             "help": "Path to pretrained model or model identifier from huggingface.co/models"
         },
     )
-    language: str = field(
+    language: Optional[str] = field(
         default=None,
         metadata={
             "help": "Evaluation language. Also train language if `train_language` is set to None."
