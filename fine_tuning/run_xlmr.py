@@ -49,6 +49,7 @@ from util import (
 )
 from hydra import compose, initialize
 from hyperparameter_search import HyperparameterTuner
+from omegaconf import OmegaConf
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 check_min_version("4.31.0.dev0")
@@ -340,7 +341,8 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict):
 
     if data_args.hyperparameter_tuning:
         sweep_id = wandb.sweep(
-            hyperparameter_tuning_args.sweep_config, project="vit-snacks-sweeps"
+            OmegaConf.to_container(hyperparameter_tuning_args.sweep_config),
+            project="vit-snacks-sweeps",
         )
         hyperparameter_tuner = HyperparameterTuner(
             hyperparameter_tuning_args,
@@ -391,6 +393,7 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict):
 
     # Prediction
     if training_args.do_predict:
+        print(88888888888)
         logger.info("*** Predict ***")
         predictions, labels, metrics = trainer.predict(
             predict_dataset, metric_key_prefix="predict"
