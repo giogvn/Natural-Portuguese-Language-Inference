@@ -23,6 +23,7 @@ import random
 import sys
 import datasets
 import evaluate
+import torch
 import numpy as np
 from datasets import load_dataset, load_metric
 import transformers
@@ -226,14 +227,23 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict):
         padding = False
 
     def preprocess_function(examples):
-        # Tokenize the texts
-        return tokenizer(
+        encoding = tokenizer(
             examples["premise"],
             examples["hypothesis"],
             padding=padding,
             max_length=data_args.max_seq_length,
             truncation=True,
+            return_tensors="pt",
         )
+        input_ids = encoding["input_ids"]
+        attention_masks = encoding["attention_mask"]
+        labels = torch.tensor(examples["label"])
+
+        return {
+            "input_ids": input_ids,
+            "attention_mask": attention_masks,
+            "labels": labels,
+        }
 
     if training_args.do_train:
         if data_args.max_train_samples is not None:
@@ -245,6 +255,7 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict):
                 batched=True,
                 load_from_cache_file=not data_args.overwrite_cache,
                 desc="Running tokenizer on train dataset",
+                remove_columns=train_dataset.column_names,
             )
         # Log a few random samples from the training set:
         for index in random.sample(range(len(train_dataset)), 3):
@@ -262,6 +273,7 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict):
                 batched=True,
                 load_from_cache_file=not data_args.overwrite_cache,
                 desc="Running tokenizer on validation dataset",
+                remove_columns=eval_dataset.column_names,
             )
 
     if training_args.do_predict:
@@ -270,6 +282,7 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict):
                 len(predict_dataset), data_args.max_predict_samples
             )
             predict_dataset = predict_dataset.select(range(max_predict_samples))
+
         with training_args.main_process_first(
             desc="prediction dataset map pre-processing"
         ):
@@ -278,12 +291,14 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict):
                 batched=True,
                 load_from_cache_file=not data_args.overwrite_cache,
                 desc="Running tokenizer on prediction dataset",
+                remove_columns=predict_dataset.column_names,
             )
 
     # Get the metric function
 
     # You can define your custom compute_metrics function. It takes an `EvalPrediction` object (a namedtuple with a
     # predictions and label_ids field) and has to return a dictionary string to float.
+
     def compute_metrics(p: EvalPrediction):
         metrics = dict()
 
@@ -393,7 +408,6 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict):
 
     # Prediction
     if training_args.do_predict:
-        print(88888888888)
         logger.info("*** Predict ***")
         predictions, labels, metrics = trainer.predict(
             predict_dataset, metric_key_prefix="predict"
