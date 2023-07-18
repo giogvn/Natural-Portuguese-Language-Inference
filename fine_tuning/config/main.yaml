@@ -3,4 +3,5 @@ defaults:
   - data_training: no_max_train_predict_samples
   - hyperparameter_tuning: basic
   - training: basic
+  - cross_tests: datasets
   - _self_

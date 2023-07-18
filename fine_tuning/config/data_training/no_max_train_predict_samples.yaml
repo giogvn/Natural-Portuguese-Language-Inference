@@ -1,9 +1,10 @@
 dataset_name: assin
-subset: ptpt
+subset: full
 evaluation:
   path: glue
   config_name: mnli
 hyperparameter_tuning: 1
+cross_tests: 1
 rename_columns:
   entailment_judgment: label
 label_names:

@@ -1,5 +1,6 @@
 import datasets as ds
 
+from datasets import load_dataset, load_metric
 from dataclasses import dataclass, field
 from typing import Optional
 import numpy as np
@@ -7,10 +8,13 @@ from transformers import (
     XLMRobertaTokenizer,
     TrainingArguments,
     XLMRobertaForSequenceClassification,
+    EvalPrediction,
+    AutoModelForSequenceClassification,
 )
 from omegaconf import DictConfig
 import pandas as pd
 import evaluate
+import torch
 
 HYPERPARAMETER_TUNING_MAX_TRAIN_SAMPLES = 1000
 HYPERPARAMETER_TUNING_MAX_EVAL_SAMPLES = 1000
@@ -72,6 +76,19 @@ class HyperparameterTuningArguments:
 
 
 @dataclass
+class CrossTestsArguments:
+    """
+    Arguments pertaining to what hyperparameters we are going to tune
+
+    """
+
+    datasets: dict = field(
+        default_factory=lambda: {},
+        metadata={"help": ("The datasets used for cross-testing the models.")},
+    )
+
+
+@dataclass
 class DataTrainingArguments:
     """
     Arguments pertaining to what data we are going to input our model for training and eval.
@@ -112,6 +129,15 @@ class DataTrainingArguments:
         metadata={
             "help": (
                 "Interpreted as a boolean, defines if the hyperparameter tuning should be performed"
+            )
+        },
+    )
+
+    cross_tests: Optional[int] = field(
+        default=0,
+        metadata={
+            "help": (
+                "Interpreted as a boolean, defines if the the trained model prediction tests should be made using tests splits from datasets different from that used for training"
             )
         },
     )
@@ -265,6 +291,9 @@ class ModelArguments:
 class HuggingFaceLoader:
     def __init__(self, config: DictConfig):
         self.config = config
+    
+    def get_cross_tests_args(self) -> dict:
+        return dict(self.config.cross_tests)
 
     def get_hyperparameter_tuning_args(self) -> dict:
         return dict(self.config.hyperparameter_tuning)

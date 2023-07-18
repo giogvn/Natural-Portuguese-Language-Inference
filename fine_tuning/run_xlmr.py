@@ -47,9 +47,10 @@ from util import (
     DataTrainingArguments,
     HyperparameterTuningArguments,
     HuggingFaceLoader,
+    CrossTestsArguments,
 )
 from hydra import compose, initialize
-from hyperparameter_search import HyperparameterTuner
+from hyperparameter_search import HyperparameterTuner, CrossPredictor
 from omegaconf import OmegaConf
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
@@ -63,7 +64,7 @@ require_version(
 logger = logging.getLogger(__name__)
 
 
-def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict):
+def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict, c_args: dict):
     # See all possible arguments in src/transformers/training_args.py
     # or by passing the --help flag to this script.
     # We now keep distinct sets of args, for a cleaner separation of concerns.
@@ -71,6 +72,7 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict):
     data_args = DataTrainingArguments(**d_args)
     training_args = TrainingArguments(**t_args)
     hyperparameter_tuning_args = HyperparameterTuningArguments(**h_args)
+    cross_tests_args = CrossTestsArguments(**c_args)
     # parser = HfArgumentParser(
     #    (ModelArguments, DataTrainingArguments, TrainingArguments)
     # )
@@ -343,7 +345,27 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict):
     else:
         data_collator = None
 
-    # Initialize our Trainer
+    if data_args.hyperparameter_tuning:
+        sweep_id = wandb.sweep(
+            OmegaConf.to_container(hyperparameter_tuning_args.sweep_config),
+            project="xlm_roberta_best",
+        )
+        hyperparameter_tuner = HyperparameterTuner(
+            hyperparameter_tuning_args,
+            train_dataset,
+            eval_dataset,
+            compute_metrics,
+            data_collator,
+            get_model,
+        )
+        wandb.agent(sweep_id, hyperparameter_tuner.train)
+        sweep_runs = wandb.Api().sweep(sweep_id).runs
+        best_run = min(
+            sweep_runs, key=lambda run: run.summary.get("accuracy", float("-inf"))
+        )
+        for config, optmized_val in best_run.config.enumerate():
+            training_args[config] = optmized_val
+
     trainer = Trainer(
         model=model,
         args=training_args,
@@ -354,21 +376,7 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict):
         data_collator=data_collator,
     )
 
-    if data_args.hyperparameter_tuning:
-        sweep_id = wandb.sweep(
-            OmegaConf.to_container(hyperparameter_tuning_args.sweep_config),
-            project="vit-snacks-sweeps",
-        )
-        hyperparameter_tuner = HyperparameterTuner(
-            hyperparameter_tuning_args,
-            train_dataset,
-            eval_dataset,
-            compute_metrics,
-            data_collator,
-            get_model,
-        )
-
-        wandb.agent(sweep_id, hyperparameter_tuner.train, count=20)
+    print(training_args)
 
     if training_args.do_train:
         checkpoint = None
@@ -392,6 +400,25 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict):
         trainer.save_state()
 
     # Evaluation
+    if data_args.cross_tests:
+        logger.info("*** Predict ***")
+        for dataset in cross_tests_args.datasets.keys():
+            sweep_id = wandb.sweep(
+                OmegaConf.to_container(cross_tests_args.datasets.dataset),
+                project=dataset + "cross_tests",
+            )
+            cross_predictor = CrossPredictor(
+                cross_tests_args,
+                trainer,
+                tokenizer,
+                data_args,
+                model_args,
+                training_args,
+                preprocess_function,
+                compute_metrics,
+            )
+            wandb.agent(sweep_id, cross_predictor.predict)
+
     if training_args.do_eval:
         logger.info("*** Evaluate ***")
         metrics = trainer.evaluate(eval_dataset=eval_dataset)
@@ -443,4 +470,4 @@ if __name__ == "__main__":
     d_args = loader.get_data_training_args()
     t_args = loader.get_training_args()
     h_args = loader.get_hyperparameter_tuning_args()
-    main(m_args, d_args, t_args, h_args)
+    main(m_args, d_args, t_args, h_args, c_args)

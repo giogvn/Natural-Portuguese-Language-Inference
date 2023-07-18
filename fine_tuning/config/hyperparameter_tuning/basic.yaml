@@ -8,21 +8,19 @@ training_args:
     remove_unused_columns: 0
     fp16: 1
 sweep_config:
-    method: random
+    method: grid
     parameters:
         epochs:
             values: 
                 - 1
+                - 2 
+                - 3
         batch_size:
             values:
                 - 8
                 - 16
                 - 32
                 - 64
-        learning_rate:
-            distribution: log_uniform_values
-            min: 1e-5
-            max: 1e-3
         weight_decay:
             values:
                 - 0.0

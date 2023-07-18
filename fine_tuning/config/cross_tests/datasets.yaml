@@ -1,0 +1,19 @@
+datasets:
+    assin:
+        sweep_config:
+            method: grid
+            parameters:
+                dataset_name:
+                    values: 
+                        - assin
+                    subset:
+                        - full
+                        - ptpt
+                        - ptbr
+        data_args:
+            rename_columns:
+                entailment_judgment: label
+            label_names:
+                0: NONE
+                1: ENTAILMENT
+                2: PARAPHRASE
