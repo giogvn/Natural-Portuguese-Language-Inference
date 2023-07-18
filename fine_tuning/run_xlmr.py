@@ -470,4 +470,5 @@ if __name__ == "__main__":
     d_args = loader.get_data_training_args()
     t_args = loader.get_training_args()
     h_args = loader.get_hyperparameter_tuning_args()
+    c_args = loader.get_cross_tests_args()
     main(m_args, d_args, t_args, h_args, c_args)
