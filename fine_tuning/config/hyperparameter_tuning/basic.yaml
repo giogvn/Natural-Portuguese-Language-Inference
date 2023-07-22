@@ -1,3 +1,5 @@
+do_hyperparameter_tuning: 0
+optimized_metric: eval/accuracy
 training_args:
     output_dir: vit-sweeps,
     report_to: wandb
@@ -7,6 +9,8 @@ training_args:
     load_best_model_at_end: 1
     remove_unused_columns: 0
     fp16: 1
+project_name: xlm_roberta_best
+sweep_id: 24qrauja
 sweep_config:
     method: grid
     parameters:

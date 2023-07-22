@@ -11,14 +11,15 @@ from transformers import (
     EvalPrediction,
     AutoModelForSequenceClassification,
 )
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 import pandas as pd
 import evaluate
-import torch
+import wandb
 
 HYPERPARAMETER_TUNING_MAX_TRAIN_SAMPLES = 1000
 HYPERPARAMETER_TUNING_MAX_EVAL_SAMPLES = 1000
 HYPERPARAMETER_TUNING_MAX_PREDICT_SAMPLES = 1000
+WANDB_PROJECT = "gio_projs/"
 
 
 @dataclass
@@ -27,6 +28,30 @@ class HyperparameterTuningArguments:
     Arguments pertaining to what hyperparameters we are going to tune
 
     """
+
+    do_hyperparameter_tuning: Optional[int] = field(
+        default=0,
+        metadata={
+            "help": (
+                "Interpreted as a boolean, defines if the hyperparameter tuning should be performed"
+            )
+        },
+    )
+
+    optimized_metric: str = field(
+        default="eval/accuracy",
+        metadata={"help": ("The metric one wants to optimize")},
+    )
+
+    project_name: str = field(
+        default="xlm_roberta_best",
+        metadata={"help": ("The project name in Weights & Biases")},
+    )
+
+    sweep_id: str = field(
+        default="",
+        metadata={"help": ("The unique identifier for a sweep in Weights & Biases")},
+    )
 
     training_args: dict = field(
         default_factory=lambda: {},
@@ -82,6 +107,19 @@ class CrossTestsArguments:
 
     """
 
+    output_dir: Optional[str] = field(
+        default="cross_test",
+        metadata={"help": ("Path to where the cross tests results should be stored")},
+    )
+    do_cross_tests: Optional[int] = field(
+        default=0,
+        metadata={
+            "help": (
+                "Interpreted as a boolean, defines if the cross tests should be performed"
+            )
+        },
+    )
+
     datasets: dict = field(
         default_factory=lambda: {},
         metadata={"help": ("The datasets used for cross-testing the models.")},
@@ -122,15 +160,6 @@ class DataTrainingArguments:
     subset: Optional[str] = field(
         default=None,
         metadata={"help": ("Defining the name of the dataset configuration")},
-    )
-
-    hyperparameter_tuning: Optional[int] = field(
-        default=0,
-        metadata={
-            "help": (
-                "Interpreted as a boolean, defines if the hyperparameter tuning should be performed"
-            )
-        },
     )
 
     cross_tests: Optional[int] = field(
@@ -291,7 +320,7 @@ class ModelArguments:
 class HuggingFaceLoader:
     def __init__(self, config: DictConfig):
         self.config = config
-    
+
     def get_cross_tests_args(self) -> dict:
         return dict(self.config.cross_tests)
 
@@ -307,74 +336,42 @@ class HuggingFaceLoader:
     def get_training_args(self) -> dict:
         return dict(self.config.training)
 
-    def get_model_name(self) -> str:
-        return self.config.model.model_name_or_path[0]
 
-    def get_dataset_subset(self) -> str:
-        return self.config.dataset.subset[0]
+class WAndBLoader:
+    def __init__(self, config):
+        self.config = config
 
-    def get_tokenizer_name(self) -> str:
-        return self.config.model.tokenizer[0]
-
-    def get_max_train_samples(self) -> int:
-        if self.config.hyperparameter_tuning[0]:
-            return HYPERPARAMETER_TUNING_MAX_TRAIN_SAMPLES
-        else:
-            return None
-
-    def get_max_eval_samples(self) -> int:
-        if self.config.hyperparameter_tuning[0]:
-            return HYPERPARAMETER_TUNING_MAX_EVAL_SAMPLES
-        else:
-            return None
-
-    def get_max_predict_samples(self) -> int:
-        if self.config.hyperparameter_tuning[0]:
-            return HYPERPARAMETER_TUNING_MAX_PREDICT_SAMPLES
-        else:
-            return None
-
-    def load_train_dataset(
-        self,
-    ):
-        split = "train"
-        dataset_name = self.config.dataset.name[0]
-        subset = self.config.dataset.subset[0]
-        return ds.load_dataset(dataset_name, subset, split=split)
-
-    def load_test_dataset(self):
-        split = "test"
-        dataset_name = self.config.dataset.name[0]
-        subset = self.config.dataset.subset[0]
-        return ds.load_dataset(dataset_name, subset, split=split)
-
-    def get_model(self):
-        model_name = self.config.model.name[0]
-        model_type = self.config.model.type[0]
-        num_labels = int(self.config.dataset.num_labels[0])
-
-        if model_type == "XLMRobertaForSequenceClassification":
-            return XLMRobertaForSequenceClassification.from_pretrained(
-                model_name, num_labels=num_labels
+    def get_sweep_id(self) -> str:
+        if self.config.sweep_id == "":
+            return wandb.sweep(
+                OmegaConf.to_container(self.config.sweep_config),
+                project=self.config.project_name,
             )
+        return WANDB_PROJECT + self.config.project_name + "/" + self.config.sweep_id
 
-    def get_tokenizer(self):
-        tokenizer = self.config.model.tokenizer[0]
-        if tokenizer == "xlmR_tokenizer":
-            return self.xlmR_tokenizer
-
-    def get_metric(self):
-        metric_name = self.config.hyperparameter.metric[0]
-        return evaluate.load(metric_name)
-
-    def xlmR_tokenizer(self, input: dict) -> list:
-        tokenizer = XLMRobertaTokenizer.from_pretrained("xlm-roberta-base")
-        return tokenizer(
-            input["premise"], input["hypothesis"], padding="max_length", truncation=True
-        )
-
-    def get_checkpoints_and_preds_dir_name(self) -> str:
-        return self.config.output.checkpoints_and_preds[0]
+    def get_optimized_hyperparameters(self, parameters: dict) -> dict:
+        if self.config.sweep_id != "":
+            api = wandb.Api()
+            sweeps = api.project(self.config.project_name).sweeps()
+            sweep = list(
+                filter(lambda sweep: sweep.id == self.config.sweep_id, sweeps)
+            )[0]
+            best_run = sweep.best_run(order=self.config.optimized_metric)
+            val_acc = best_run.summary.get(self.config.optimized_metric, 0)
+            print(f"Best run {best_run.name} with {val_acc}% validation accuracy")
+            parameters["num_train_epochs"] = best_run.config["epochs"]
+            parameters["weight_decay"] = best_run.config["weight_decay"]
+            parameters["per_device_train_batch_size"] = best_run.config["batch_size"]
+            parameters["per_device_eval_batch_size"] = best_run.config[
+                "eval_batch_size"
+            ]
+            parameters["fp16"] = best_run.config["fp16"]
+            parameters["save_strategy"] = best_run.config["save_strategy"]
+            parameters["evaluation_strategy"] = best_run.config["evaluation_strategy"]
+            parameters["remove_unused_columns"] = best_run.config[
+                "remove_unused_columns"
+            ]
+        return parameters
 
 
 def get_dataset_splits_and_configs(

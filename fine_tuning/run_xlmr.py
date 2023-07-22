@@ -22,7 +22,6 @@ import os
 import random
 import sys
 import datasets
-import evaluate
 import torch
 import numpy as np
 from datasets import load_dataset, load_metric
@@ -46,8 +45,9 @@ from util import (
     ModelArguments,
     DataTrainingArguments,
     HyperparameterTuningArguments,
-    HuggingFaceLoader,
     CrossTestsArguments,
+    HuggingFaceLoader,
+    WAndBLoader,
 )
 from hydra import compose, initialize
 from hyperparameter_search import HyperparameterTuner, CrossPredictor
@@ -73,6 +73,7 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict, c_args: dict):
     training_args = TrainingArguments(**t_args)
     hyperparameter_tuning_args = HyperparameterTuningArguments(**h_args)
     cross_tests_args = CrossTestsArguments(**c_args)
+
     # parser = HfArgumentParser(
     #    (ModelArguments, DataTrainingArguments, TrainingArguments)
     # )
@@ -330,13 +331,6 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict, c_args: dict):
 
         return metrics
 
-    """
-    metric = evaluate.load(**data_args.evaluation)
-    def compute_metrics(p: EvalPrediction):
-        preds = p.predictions[0] if isinstance(p.predictions, tuple) else p.predictions
-        preds = np.argmax(preds, axis=1)
-        return metric.compute(predictions=preds, references=p.label_ids)"""
-
     # Data collator will default to DataCollatorWithPadding, so we change it if we already did the padding.
     if data_args.pad_to_max_length:
         data_collator = default_data_collator
@@ -345,11 +339,14 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict, c_args: dict):
     else:
         data_collator = None
 
-    if data_args.hyperparameter_tuning:
-        sweep_id = wandb.sweep(
-            OmegaConf.to_container(hyperparameter_tuning_args.sweep_config),
-            project="xlm_roberta_best",
-        )
+    loader = WAndBLoader(hyperparameter_tuning_args)
+    t_args = loader.get_optimized_hyperparameters(t_args)
+    training_args = TrainingArguments(**t_args)
+
+    # Hyperparameter Tuning
+    if hyperparameter_tuning_args.do_hyperparameter_tuning:
+        loader = WAndBLoader(hyperparameter_tuning_args)
+        sweep_id = loader.get_sweep_id()
         hyperparameter_tuner = HyperparameterTuner(
             hyperparameter_tuning_args,
             train_dataset,
@@ -359,12 +356,6 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict, c_args: dict):
             get_model,
         )
         wandb.agent(sweep_id, hyperparameter_tuner.train)
-        sweep_runs = wandb.Api().sweep(sweep_id).runs
-        best_run = min(
-            sweep_runs, key=lambda run: run.summary.get("accuracy", float("-inf"))
-        )
-        for config, optmized_val in best_run.config.enumerate():
-            training_args[config] = optmized_val
 
     trainer = Trainer(
         model=model,
@@ -375,8 +366,6 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict, c_args: dict):
         tokenizer=tokenizer,
         data_collator=data_collator,
     )
-
-    print(training_args)
 
     if training_args.do_train:
         checkpoint = None
@@ -399,25 +388,24 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict, c_args: dict):
         trainer.save_metrics("train", metrics)
         trainer.save_state()
 
-    # Evaluation
-    if data_args.cross_tests:
-        logger.info("*** Predict ***")
-        for dataset in cross_tests_args.datasets.keys():
-            sweep_id = wandb.sweep(
-                OmegaConf.to_container(cross_tests_args.datasets.dataset),
-                project=dataset + "cross_tests",
-            )
-            cross_predictor = CrossPredictor(
-                cross_tests_args,
-                trainer,
-                tokenizer,
-                data_args,
-                model_args,
-                training_args,
-                preprocess_function,
-                compute_metrics,
-            )
-            wandb.agent(sweep_id, cross_predictor.predict)
+    # Cross Tests
+    if cross_tests_args.do_cross_tests:
+        for _, configs in cross_tests_args.datasets.items():
+            if configs["do_cross_tests"]:
+                cross_predictor = CrossPredictor(
+                    logger,
+                    cross_tests_args.output_dir,
+                    configs,
+                    trainer,
+                    tokenizer,
+                    model_args,
+                    training_args,
+                    data_args.dataset_name,
+                    data_args.overwrite_cache,
+                    preprocess_function,
+                    compute_metrics,
+                )
+                cross_predictor.do_cross_tests()
 
     if training_args.do_eval:
         logger.info("*** Evaluate ***")
