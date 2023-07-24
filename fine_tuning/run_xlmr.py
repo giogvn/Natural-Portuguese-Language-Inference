@@ -169,7 +169,7 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict, c_args: dict):
             cache_dir=model_args.cache_dir,
             use_auth_token=True if model_args.use_auth_token else None,
         )
-        label_list = data_args.label_names["predict_dataset"]
+    label_list = data_args.label_names["predict_dataset"]
 
     if data_args.rename_columns is not None:
         if training_args.do_train:
@@ -339,17 +339,13 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict, c_args: dict):
     else:
         data_collator = None
 
-    if hyperparameter_tuning_args.load_optimized_parameters:
-        loader = WAndBLoader(hyperparameter_tuning_args)
-        t_args = loader.get_optimized_hyperparameters(t_args)
-        training_args = TrainingArguments(**t_args)
-
     # Hyperparameter Tuning
     if hyperparameter_tuning_args.do_hyperparameter_tuning:
         loader = WAndBLoader(hyperparameter_tuning_args)
         sweep_id = loader.get_sweep_id()
         hyperparameter_tuner = HyperparameterTuner(
             hyperparameter_tuning_args,
+            training_args,
             train_dataset,
             eval_dataset,
             compute_metrics,
@@ -357,6 +353,9 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict, c_args: dict):
             get_model,
         )
         wandb.agent(sweep_id, hyperparameter_tuner.train)
+
+    if hyperparameter_tuning_args.best_model_path != "":
+        model = WAndBLoader.load_model(hyperparameter_tuning_args.best_model_path)
 
     trainer = Trainer(
         model=model,

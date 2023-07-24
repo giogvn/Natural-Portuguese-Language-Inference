@@ -70,7 +70,30 @@ class CrossPredictor:
                 desc="Running tokenizer on prediction dataset",
                 remove_columns=predict_dataset.column_names,
             )
-        predictions, labels, metrics = self.trainer.predict(
+
+        output_dir = os.path.join(
+            self.output_base_dir, data_args.dataset_name + "_" + subset
+        )
+        if not os.path.exists(self.output_base_dir):
+            os.makedirs(self.output_base_dir)
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+
+        t_args = self.training_args.to_dict()
+        t_args["output_dir"] = output_dir
+        training_args = TrainingArguments(**t_args)
+        trainer = Trainer(
+            model=self.trainer.model,
+            args=training_args,
+            train_dataset=self.trainer.train_dataset
+            if training_args.do_train
+            else None,
+            eval_dataset=self.trainer.eval_dataset if training_args.do_eval else None,
+            compute_metrics=self.trainer.compute_metrics,
+            tokenizer=self.tokenizer,
+            data_collator=self.trainer.data_collator,
+        )
+        predictions, labels, metrics = trainer.predict(
             predict_dataset, metric_key_prefix="predict"
         )
 
@@ -81,20 +104,14 @@ class CrossPredictor:
         )
         metrics["predict_samples"] = min(max_predict_samples, len(predict_dataset))
 
-        self.trainer.log_metrics("predict", metrics)
-        self.trainer.save_metrics("predict", metrics)
+        trainer.log_metrics("predict", metrics)
+        trainer.save_metrics("predict", metrics)
 
         predictions = np.argmax(predictions, axis=1)
-        output_dir = os.path.join(self.output_base_dir, data_args.dataset_name)
         output_predict_file = os.path.join(output_dir, subset + "_predictions.txt")
 
-        if not os.path.exists(self.output_base_dir):
-            os.makedirs(self.output_base_dir)
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
-
         label_list = data_args.label_names["predict_dataset"]
-        if self.trainer.is_world_process_zero():
+        if trainer.is_world_process_zero():
             with open(output_predict_file, "w") as writer:
                 writer.write("index\tprediction\n")
                 for index, item in enumerate(predictions):
@@ -108,6 +125,7 @@ class HyperparameterTuner:
     def __init__(
         self,
         args: HyperparameterTuningArguments,
+        training_args: TrainingArguments,
         train_dataset,
         eval_dataset,
         metrics_computer: callable,
@@ -115,7 +133,9 @@ class HyperparameterTuner:
         model_getter: callable,
     ):
         self.config = args.sweep_config
-        self.training_args = args.training_args
+        self.optm_metric = self.config.metric.name
+        self.goal = self.config.metric.goal
+        self.training_args = training_args
         self.train_dataset = train_dataset
         self.eval_dataset = eval_dataset
         self.metrics_computer = metrics_computer
@@ -138,6 +158,8 @@ class HyperparameterTuner:
                 evaluation_strategy=self.training_args.evaluation_strategy,
                 logging_strategy=self.training_args.logging_strategy,
                 load_best_model_at_end=self.training_args.load_best_model_at_end,
+                metric_for_best_model=self.optm_metric,
+                greater_is_better=self.goal == "maximize",
                 remove_unused_columns=self.training_args.remove_unused_columns,
                 fp16=self.training_args.fp16,
             )

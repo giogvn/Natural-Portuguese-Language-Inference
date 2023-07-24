@@ -29,6 +29,16 @@ class HyperparameterTuningArguments:
 
     """
 
+    best_model_path: Optional[str] = field(
+        default="",
+        metadata={"help": ("The path to a pretrained model")},
+    )
+
+    optimized_metric: Optional[str] = field(
+        default="eval_accuracy",
+        metadata={"help": ("The metric to be optimized")},
+    )
+
     do_hyperparameter_tuning: Optional[int] = field(
         default=0,
         metadata={
@@ -358,7 +368,12 @@ class WAndBLoader:
             )
         return WANDB_PROJECT + self.config.project_name + "/" + self.config.sweep_id
 
-    def get_optimized_hyperparameters(self, parameters: dict) -> dict:
+    def load_model(model_path: str):
+        return AutoModelForSequenceClassification.from_pretrained(model_path)
+
+    def get_optimized_hyperparameters(
+        self, training_args: TrainingArguments, parameters: dict
+    ) -> dict:
         if self.config.sweep_id != "":
             api = wandb.Api()
             sweeps = api.project(self.config.project_name).sweeps()
@@ -368,18 +383,14 @@ class WAndBLoader:
             best_run = sweep.best_run(order=self.config.optimized_metric)
             val_acc = best_run.summary.get(self.config.optimized_metric, 0)
             print(f"Best run {best_run.name} with {val_acc}% validation accuracy")
-            parameters["num_train_epochs"] = best_run.config["epochs"]
-            parameters["weight_decay"] = best_run.config["weight_decay"]
-            parameters["per_device_train_batch_size"] = best_run.config["batch_size"]
-            parameters["per_device_eval_batch_size"] = best_run.config[
-                "eval_batch_size"
-            ]
-            parameters["fp16"] = best_run.config["fp16"]
-            parameters["save_strategy"] = best_run.config["save_strategy"]
-            parameters["evaluation_strategy"] = best_run.config["evaluation_strategy"]
-            parameters["remove_unused_columns"] = best_run.config[
-                "remove_unused_columns"
-            ]
+            for param in best_run.config.keys():
+                if param in training_args.to_dict():
+                    parameters[param] = best_run.config[param]
+                    print(f"Optimized hyperparameter: {param}: {parameters[param]}")
+            parameters["sharded_ddp"] = False
+            parameters["fsdp"] = False
+            parameters["fsdp_config"] = None
+            parameters["debug"] = ""
         return parameters
 
 

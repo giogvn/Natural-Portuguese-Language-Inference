@@ -1,18 +1,12 @@
-do_hyperparameter_tuning: 0
-load_optimized_parameters: 0
+do_hyperparameter_tuning: 1
+best_model_path: ""
 optimized_metric: eval/accuracy
-training_args:
-    output_dir: vit-sweeps,
-    report_to: wandb
-    save_strategy: epoch
-    evaluation_strategy: epoch
-    logging_strategy: epoch
-    load_best_model_at_end: 1
-    remove_unused_columns: 0
-    fp16: 1
-project_name: xlm_roberta_best
-sweep_id: 24qrauja
+project_name: xlm_roberta
+sweep_id: ""
 sweep_config:
+    metric:
+        name: eval_accuracy
+        goal: maximize
     method: grid
     parameters:
         epochs:
