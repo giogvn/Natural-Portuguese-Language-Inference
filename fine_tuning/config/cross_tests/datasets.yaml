@@ -10,6 +10,7 @@ datasets:
                     - ptpt
                     - ptbr                
                 data_args:
+                    dataset_name: assin
                     rename_columns:
                         entailment_judgment: label
                     label_names:

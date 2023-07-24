@@ -1,4 +1,4 @@
-output_dir: checkpoints_and_preds
+output_dir: xlmr
 overwrite_output_dir: 1
 do_train: 1
 do_eval: 1

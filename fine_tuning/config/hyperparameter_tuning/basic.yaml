@@ -1,4 +1,5 @@
 do_hyperparameter_tuning: 0
+load_optimized_parameters: 0
 optimized_metric: eval/accuracy
 training_args:
     output_dir: vit-sweeps,

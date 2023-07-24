@@ -38,6 +38,15 @@ class HyperparameterTuningArguments:
         },
     )
 
+    load_optimized_parameters: Optional[int] = field(
+        default=0,
+        metadata={
+            "help": (
+                "Interpreted as a boolean, defines whether the optimized training arguments should be loaded"
+            )
+        },
+    )
+
     optimized_metric: str = field(
         default="eval/accuracy",
         metadata={"help": ("The metric one wants to optimize")},

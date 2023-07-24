@@ -339,9 +339,10 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict, c_args: dict):
     else:
         data_collator = None
 
-    loader = WAndBLoader(hyperparameter_tuning_args)
-    t_args = loader.get_optimized_hyperparameters(t_args)
-    training_args = TrainingArguments(**t_args)
+    if hyperparameter_tuning_args.load_optimized_parameters:
+        loader = WAndBLoader(hyperparameter_tuning_args)
+        t_args = loader.get_optimized_hyperparameters(t_args)
+        training_args = TrainingArguments(**t_args)
 
     # Hyperparameter Tuning
     if hyperparameter_tuning_args.do_hyperparameter_tuning:

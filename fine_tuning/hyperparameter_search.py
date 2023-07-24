@@ -10,7 +10,7 @@ class CrossPredictor:
     def __init__(
         self,
         logger,
-        output_dir: str,
+        output_base_dir: str,
         args,
         trainer: Trainer,
         tokenizer,
@@ -22,7 +22,7 @@ class CrossPredictor:
         metrics_computer: callable,
     ):
         self.train_dataset_name = train_dataset_name
-        self.output_dir = output_dir
+        self.output_base_dir = output_base_dir
         self.logger = logger
         self.preprocess_func = preprocess_func
         self.metrics_computer = metrics_computer
@@ -30,24 +30,24 @@ class CrossPredictor:
         self.tokenizer = tokenizer
         self.training_args = training_args
         self.model_args = model_args
-        self.data_args = args.data_args
         self.test_datasets = args.test_datasets
         self.train_dataset_name = train_dataset_name
+        self.overwrite_cache = overwrite_cache
 
     def do_cross_tests(self):
         for dataset, args in self.test_datasets.items():
             subsets = args["subsets"]
-            data_args = args["data_args"]
+            data_args = DataTrainingArguments(**args["data_args"])
             if len(subsets):
                 for subset in subsets:
-                    dataset = load_dataset(
+                    test_dataset = load_dataset(
                         dataset,
                         name=subset,
                         split="test" if (self.train_dataset_name == dataset) else None,
                         cache_dir=self.model_args.cache_dir,
                         use_auth_token=True if self.model_args.use_auth_token else None,
                     )
-                    self._predict(dataset, data_args, subset=subset)
+                    self._predict(test_dataset, data_args, subset=subset)
             else:
                 self._predict(dataset, data_args)
 
@@ -58,10 +58,8 @@ class CrossPredictor:
         subset: str = "",
     ):
         self.logger.info("*** Predict ***")
-        if data_args.rename_colums:
-            predict_dataset = predict_dataset.rename_columns(
-                self.data_args.rename_columns
-            )
+        if hasattr(data_args, "rename_columns"):
+            predict_dataset = predict_dataset.rename_columns(data_args.rename_columns)
         with self.training_args.main_process_first(
             desc="prediction dataset map pre-processing"
         ):
@@ -87,9 +85,13 @@ class CrossPredictor:
         self.trainer.save_metrics("predict", metrics)
 
         predictions = np.argmax(predictions, axis=1)
-        output_predict_file = os.path.join(self.output_dir, subset + "_predictions.txt")
-        if not os.path.exists(self.output_dir):
-            os.makedirs(self.output_dir)
+        output_dir = os.path.join(self.output_base_dir, data_args.dataset_name)
+        output_predict_file = os.path.join(output_dir, subset + "_predictions.txt")
+
+        if not os.path.exists(self.output_base_dir):
+            os.makedirs(self.output_base_dir)
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
 
         label_list = data_args.label_names["predict_dataset"]
         if self.trainer.is_world_process_zero():
