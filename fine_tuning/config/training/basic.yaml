@@ -1,8 +1,8 @@
 output_dir: xlmr
 overwrite_output_dir: 1
-do_train: 1
-do_eval: 1
-do_predict: 1
+do_train: 0
+do_eval: 0
+do_predict: 0
 evaluation_strategy: epoch
 report_to: wandb
 save_strategy: epoch
