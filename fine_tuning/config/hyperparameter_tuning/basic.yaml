@@ -1,7 +1,6 @@
 do_hyperparameter_tuning: 1
-best_model_path: ""
 optimized_metric: eval/accuracy
-project_name: xlm_roberta
+project_path: gio_projs/XLM-Roberta
 sweep_id: ""
 sweep_config:
     metric:

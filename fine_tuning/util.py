@@ -335,6 +335,22 @@ class ModelArguments:
         },
     )
 
+    download_fine_tuned: bool = field(
+        default=False,
+        metadata={
+            "help": "Will download a fine-tuned model from an Weights & Biases' Artifact object."
+        },
+    )
+    fine_tuned_model_local_dir: Optional[str] = field(
+        default="model_fine_tuned",
+        metadata={"help": "The fine tuned model files path"},
+    )
+
+    fine_tuned_wandb_name_tag: Optional[str] = field(
+        default="",
+        metadata={"help": "The fine tuned model name tag in Weights & Biases"},
+    )
+
 
 class HuggingFaceLoader:
     def __init__(self, config: DictConfig):
@@ -360,38 +376,26 @@ class WAndBLoader:
     def __init__(self, config):
         self.config = config
 
-    def get_sweep_id(self) -> str:
-        if self.config.sweep_id == "":
+    def get_sweep_id(config) -> str:
+        if config.sweep_id == "":
             return wandb.sweep(
-                OmegaConf.to_container(self.config.sweep_config),
-                project=self.config.project_name,
+                OmegaConf.to_container(config.sweep_config),
+                project=config.project_name,
             )
-        return WANDB_PROJECT + self.config.project_name + "/" + self.config.sweep_id
+        return config.project_name + "/" + config.sweep_id
 
-    def load_model(model_path: str):
+    def load_model(self, model_path: str):
         return AutoModelForSequenceClassification.from_pretrained(model_path)
 
-    def get_optimized_hyperparameters(
-        self, training_args: TrainingArguments, parameters: dict
-    ) -> dict:
-        if self.config.sweep_id != "":
-            api = wandb.Api()
-            sweeps = api.project(self.config.project_name).sweeps()
-            sweep = list(
-                filter(lambda sweep: sweep.id == self.config.sweep_id, sweeps)
-            )[0]
-            best_run = sweep.best_run(order=self.config.optimized_metric)
-            val_acc = best_run.summary.get(self.config.optimized_metric, 0)
-            print(f"Best run {best_run.name} with {val_acc}% validation accuracy")
-            for param in best_run.config.keys():
-                if param in training_args.to_dict():
-                    parameters[param] = best_run.config[param]
-                    print(f"Optimized hyperparameter: {param}: {parameters[param]}")
-            parameters["sharded_ddp"] = False
-            parameters["fsdp"] = False
-            parameters["fsdp_config"] = None
-            parameters["debug"] = ""
-        return parameters
+    def get_best_model(config):
+        if config.download_fine_tuned:
+            run = wandb.init()
+            artifact = run.use_artifact(config.fine_tuned_wandb_name_tag, type="model")
+            artifact.download(config.fine_tuned_model_local_dir)
+
+        return AutoModelForSequenceClassification.from_pretrained(
+            config.fine_tuned_model_local_dir
+        )
 
 
 def get_dataset_splits_and_configs(

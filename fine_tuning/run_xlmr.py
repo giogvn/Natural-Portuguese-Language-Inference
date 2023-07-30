@@ -133,42 +133,39 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict, c_args: dict):
     # In distributed training, the load_dataset function guarantees that only one local process can concurrently
     # download the dataset.
     # Downloading and loading xnli dataset from the hub.
-    if training_args.do_train:
-        if data_args.subset is None:
-            train_dataset = load_dataset(
-                data_args.dataset_name,
-                split="train",
-                cache_dir=model_args.cache_dir,
-                use_auth_token=True if model_args.use_auth_token else None,
-            )
-        else:
-            train_dataset = load_dataset(
-                data_args.dataset_name,
-                name=data_args.subset,
-                split="train",
-                cache_dir=model_args.cache_dir,
-                use_auth_token=True if model_args.use_auth_token else None,
-            )
-        label_list = data_args.label_names["train_dataset"]
-
-    if training_args.do_eval:
-        eval_dataset = load_dataset(
+    if data_args.subset is None:
+        train_dataset = load_dataset(
             data_args.dataset_name,
-            name=data_args.subset,
-            split="validation",
+            split="train",
             cache_dir=model_args.cache_dir,
             use_auth_token=True if model_args.use_auth_token else None,
         )
-        label_list = data_args.label_names["eval_dataset"]
-
-    if training_args.do_predict:
-        predict_dataset = load_dataset(
+    else:
+        train_dataset = load_dataset(
             data_args.dataset_name,
             name=data_args.subset,
-            split="test",
+            split="train",
             cache_dir=model_args.cache_dir,
             use_auth_token=True if model_args.use_auth_token else None,
         )
+    label_list = data_args.label_names["train_dataset"]
+
+    eval_dataset = load_dataset(
+        data_args.dataset_name,
+        name=data_args.subset,
+        split="validation",
+        cache_dir=model_args.cache_dir,
+        use_auth_token=True if model_args.use_auth_token else None,
+    )
+    label_list = data_args.label_names["eval_dataset"]
+
+    predict_dataset = load_dataset(
+        data_args.dataset_name,
+        name=data_args.subset,
+        split="test",
+        cache_dir=model_args.cache_dir,
+        use_auth_token=True if model_args.use_auth_token else None,
+    )
     label_list = data_args.label_names["predict_dataset"]
 
     if data_args.rename_columns is not None:
@@ -341,8 +338,7 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict, c_args: dict):
 
     # Hyperparameter Tuning
     if hyperparameter_tuning_args.do_hyperparameter_tuning:
-        loader = WAndBLoader(hyperparameter_tuning_args)
-        sweep_id = loader.get_sweep_id()
+        sweep_id = WAndBLoader.get_sweep_id(hyperparameter_tuning_args)
         hyperparameter_tuner = HyperparameterTuner(
             hyperparameter_tuning_args,
             training_args,
@@ -354,8 +350,9 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict, c_args: dict):
         )
         wandb.agent(sweep_id, hyperparameter_tuner.train)
 
-    if hyperparameter_tuning_args.best_model_path != "":
-        model = WAndBLoader.load_model(hyperparameter_tuning_args.best_model_path)
+    if model_args.fine_tuned_wandb_name_tag != "":
+        # TODO: add the artifact's downloaded path dir name to the model's yaml config file
+        model = WAndBLoader.get_best_model(model_args)
 
     trainer = Trainer(
         model=model,

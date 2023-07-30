@@ -1,12 +1,12 @@
 output_dir: xlmr
 overwrite_output_dir: 1
-do_train: 0
-do_eval: 0
-do_predict: 0
+do_train: 1
+do_eval: 1
+do_predict: 1
 evaluation_strategy: epoch
 report_to: wandb
 save_strategy: epoch
 logging_strategy: epoch
 load_best_model_at_end: 1
-remove_unused_columns: 0
+remove_unused_columns: 1
 fp16: 1

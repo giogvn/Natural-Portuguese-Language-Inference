@@ -3,7 +3,7 @@ import wandb, os
 from transformers import TrainingArguments, Trainer, EvalPrediction
 from datasets import load_dataset, load_metric, Dataset
 import numpy as np
-import os
+import os, shutil
 
 
 class CrossPredictor:
@@ -143,7 +143,8 @@ class HyperparameterTuner:
         self.collate_func = collate_func
 
     def train(self, config=None):
-        with wandb.init(config=config, resume=True):
+        run = wandb.init(config=config, resume=True)
+        with run:
             self.config = wandb.config
 
             training_args = TrainingArguments(
@@ -174,3 +175,14 @@ class HyperparameterTuner:
             )
 
             trainer.train()
+            if trainer.is_world_process_zero():
+                run_id = wandb.run.id
+                save_dir = f"./best_model_{run_id}"
+                trainer.model.save_pretrained(save_dir)
+                config_path = save_dir + "/" + "config.json"
+                weights_path = save_dir + "/" + "pytorch_model.bin"
+                artifact = wandb.Artifact("model", type="model")
+                artifact.add_file(config_path, name="config.json")
+                artifact.add_file(weights_path, name="pytorch_model.bin")
+                run.log_artifact(artifact)
+                shutil.rmtree(save_dir)
