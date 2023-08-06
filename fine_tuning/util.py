@@ -15,6 +15,7 @@ from omegaconf import DictConfig, OmegaConf
 import pandas as pd
 import evaluate
 import wandb
+import os
 
 HYPERPARAMETER_TUNING_MAX_TRAIN_SAMPLES = 1000
 HYPERPARAMETER_TUNING_MAX_EVAL_SAMPLES = 1000
@@ -62,9 +63,9 @@ class HyperparameterTuningArguments:
         metadata={"help": ("The metric one wants to optimize")},
     )
 
-    project_name: str = field(
+    project_path: str = field(
         default="xlm_roberta_best",
-        metadata={"help": ("The project name in Weights & Biases")},
+        metadata={"help": ("The project path in Weights & Biases")},
     )
 
     sweep_id: str = field(
@@ -380,9 +381,9 @@ class WAndBLoader:
         if config.sweep_id == "":
             return wandb.sweep(
                 OmegaConf.to_container(config.sweep_config),
-                project=config.project_name,
+                project=os.path.basename(config.project_path),
             )
-        return config.project_name + "/" + config.sweep_id
+        return config.project_path + "/" + config.sweep_id
 
     def load_model(self, model_path: str):
         return AutoModelForSequenceClassification.from_pretrained(model_path)

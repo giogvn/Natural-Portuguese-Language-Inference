@@ -436,7 +436,7 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict, c_args: dict):
         trainer.save_metrics("predict", metrics)
 
         predictions = np.argmax(predictions, axis=1)
-        output_predict_file = os.path.join(training_args.output_dir, "predictions.txt")
+        output_predict_file = os.join(training_args.output_dir, "predictions.txt")
         if trainer.is_world_process_zero():
             with open(output_predict_file, "w") as writer:
                 writer.write("index\tprediction\n")
@@ -448,7 +448,7 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict, c_args: dict):
 
 
 if __name__ == "__main__":
-    initialize(config_path="config", version_base=None)
+    initialize(config_path="config/assin2_config", version_base=None)
     config = compose(config_name="main")
     loader = HuggingFaceLoader(config)
     m_args = loader.get_model_args()
