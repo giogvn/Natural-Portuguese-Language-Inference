@@ -3,7 +3,7 @@ import wandb, os
 from transformers import TrainingArguments, Trainer, EvalPrediction
 from datasets import load_dataset, load_metric, Dataset
 import numpy as np
-import os, shutil
+import os, shutil, json
 
 
 class CrossPredictor:
@@ -30,26 +30,32 @@ class CrossPredictor:
         self.tokenizer = tokenizer
         self.training_args = training_args
         self.model_args = model_args
-        self.test_datasets = args.test_datasets
+        self.test_datasets = args.datasets
         self.train_dataset_name = train_dataset_name
         self.overwrite_cache = overwrite_cache
 
     def do_cross_tests(self):
         for dataset, args in self.test_datasets.items():
-            subsets = args["subsets"]
             data_args = DataTrainingArguments(**args["data_args"])
-            if len(subsets):
+            if "subsets" in args:
+                subsets = args["subsets"]
                 for subset in subsets:
                     test_dataset = load_dataset(
                         dataset,
                         name=subset,
-                        split="test" if (self.train_dataset_name == dataset) else None,
+                        split="test",
                         cache_dir=self.model_args.cache_dir,
                         use_auth_token=True if self.model_args.use_auth_token else None,
                     )
                     self._predict(test_dataset, data_args, subset=subset)
             else:
-                self._predict(dataset, data_args)
+                test_dataset = load_dataset(
+                    dataset,
+                    split="test",
+                    cache_dir=self.model_args.cache_dir,
+                    use_auth_token=True if self.model_args.use_auth_token else None,
+                )
+                self._predict(test_dataset, data_args)
 
     def _predict(
         self,
@@ -132,6 +138,7 @@ class HyperparameterTuner:
         collate_func: callable,
         model_getter: callable,
     ):
+        self.project_path = args.project_path
         self.config = args.sweep_config
         self.optm_metric = self.config.metric.name
         self.goal = self.config.metric.goal
@@ -141,6 +148,7 @@ class HyperparameterTuner:
         self.metrics_computer = metrics_computer
         self.model_getter = model_getter
         self.collate_func = collate_func
+        self.curr_eval_accuracy = float("-inf")
 
     def train(self, config=None):
         run = wandb.init(config=config, resume=True)
@@ -149,9 +157,8 @@ class HyperparameterTuner:
 
             training_args = TrainingArguments(
                 output_dir=self.training_args.output_dir,
-                report_to=self.training_args.report_to,  # Turn on Weights & Biases logging
+                report_to=self.training_args.report_to,
                 num_train_epochs=self.config.epochs,
-                # learning_rate=self.config.learning_rate,
                 weight_decay=self.config.weight_decay,
                 per_device_train_batch_size=self.config.batch_size,
                 per_device_eval_batch_size=16,
@@ -163,6 +170,7 @@ class HyperparameterTuner:
                 greater_is_better=self.goal == "maximize",
                 remove_unused_columns=self.training_args.remove_unused_columns,
                 fp16=self.training_args.fp16,
+                eval_steps=self.training_args.eval_steps,
             )
 
             trainer = Trainer(
@@ -175,14 +183,21 @@ class HyperparameterTuner:
             )
 
             trainer.train()
-            if trainer.is_world_process_zero():
-                run_id = wandb.run.id
-                save_dir = f"./best_model_{run_id}"
-                trainer.model.save_pretrained(save_dir)
-                config_path = save_dir + "/" + "config.json"
-                weights_path = save_dir + "/" + "pytorch_model.bin"
-                artifact = wandb.Artifact("model", type="model")
-                artifact.add_file(config_path, name="config.json")
-                artifact.add_file(weights_path, name="pytorch_model.bin")
-                run.log_artifact(artifact)
-                shutil.rmtree(save_dir)
+            eval_results = trainer.evaluate()
+            run_eval_accuracy = eval_results["eval_accuracy"]
+            if run_eval_accuracy > self.curr_eval_accuracy:
+                if trainer.is_world_process_zero():
+                    run_id = run.id
+                    save_dir = f"./best_model_{run_id}"
+                    trainer.model.save_pretrained(save_dir)
+                    artifact = wandb.Artifact("model", type="model")
+                    artifact.add_dir(save_dir)
+                    run.log_artifact(artifact)
+
+                    file_path = save_dir + "/eval_results.json"
+                    with open(file_path, "w") as outfile:
+                        json.dump(eval_results, outfile)
+
+                    artifact.add_file(file_path)
+                    shutil.rmtree(save_dir)
+                    self.curr_eval_accuracy = run_eval_accuracy

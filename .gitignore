@@ -3,3 +3,4 @@
 config/__pychache__
 fine_tuning/__pychache__
 fine_tuning/tests
+*py_cache*
