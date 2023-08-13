@@ -148,6 +148,7 @@ class HyperparameterTuner:
         self.metrics_computer = metrics_computer
         self.model_getter = model_getter
         self.collate_func = collate_func
+        self.best_run = None
         self.curr_eval_accuracy = float("-inf")
 
     def train(self, config=None):
@@ -187,17 +188,18 @@ class HyperparameterTuner:
             run_eval_accuracy = eval_results["eval_accuracy"]
             if run_eval_accuracy > self.curr_eval_accuracy:
                 if trainer.is_world_process_zero():
-                    run_id = run.id
+                    run_id = wandb.run.id
                     save_dir = f"./best_model_{run_id}"
                     trainer.model.save_pretrained(save_dir)
                     artifact = wandb.Artifact("model", type="model")
                     artifact.add_dir(save_dir)
                     run.log_artifact(artifact)
 
-                    file_path = save_dir + "/eval_results.json"
-                    with open(file_path, "w") as outfile:
-                        json.dump(eval_results, outfile)
+                    if self.best_run != None:
+                        for art in self.best_run.logged_artifacts():
+                            art.delete(delete_aliases=True)
 
-                    artifact.add_file(file_path)
                     shutil.rmtree(save_dir)
+
                     self.curr_eval_accuracy = run_eval_accuracy
+                    self.best_run = run
