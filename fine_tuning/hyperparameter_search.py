@@ -49,7 +49,7 @@ class CrossPredictor:
                     test_dataset = load_dataset(
                         dataset,
                         name=subset,
-                        split="test",
+                        split=data_args.test_dataset_split,
                         cache_dir=self.model_args.cache_dir,
                         use_auth_token=True if self.model_args.use_auth_token else None,
                     )
@@ -57,7 +57,7 @@ class CrossPredictor:
             else:
                 test_dataset = load_dataset(
                     dataset,
-                    split="test",
+                    split=data_args.test_dataset_split,
                     cache_dir=self.model_args.cache_dir,
                     use_auth_token=True if self.model_args.use_auth_token else None,
                 )
@@ -70,7 +70,7 @@ class CrossPredictor:
         subset: str = "",
     ):
         self.logger.info("*** Predict ***")
-        if hasattr(data_args, "rename_columns"):
+        if data_args.rename_columns != None:
             predict_dataset = predict_dataset.rename_columns(data_args.rename_columns)
         with self.training_args.main_process_first(
             desc="prediction dataset map pre-processing"
@@ -102,7 +102,7 @@ class CrossPredictor:
             else None,
             eval_dataset=self.trainer.eval_dataset if training_args.do_eval else None,
             compute_metrics=self.trainer.compute_metrics
-            if not hasattr(data_args, "modify_labels_and_preds")
+            if not data_args.modify_labels_and_preds
             else partial(
                 self.custom_compute_metrics,
                 modify_labels_and_preds=data_args.modify_labels_and_preds,

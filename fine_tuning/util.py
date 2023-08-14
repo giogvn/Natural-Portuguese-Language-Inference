@@ -268,6 +268,11 @@ class DataTrainingArguments:
         },
     )
 
+    test_dataset_split: dict[str:str] = field(
+        default="test",
+        metadata={"help": ("The name of the test dataset")},
+    )
+
 
 @dataclass
 class ModelArguments:

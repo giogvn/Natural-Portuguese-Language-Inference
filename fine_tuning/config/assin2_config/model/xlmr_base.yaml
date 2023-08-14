@@ -1,5 +1,5 @@
 model_name_or_path: xlm-roberta-base
 tokenizer_name: XLMRobertaTokenizer
 download_fine_tuned: 1
-fine_tuned_model_local_dir: models/XLM-Roberta_assin
+fine_tuned_model_local_dir: models/XLM-Roberta_assin2
 fine_tuned_wandb_name_tag: gio_projs/assin2-XLM-Roberta/model:v6
