@@ -259,6 +259,15 @@ class DataTrainingArguments:
         },
     )
 
+    modify_labels_and_preds: dict = field(
+        default=None,
+        metadata={
+            "help": (
+                "A dictionary where the key is the old label value and the value is the new label value"
+            )
+        },
+    )
+
 
 @dataclass
 class ModelArguments:

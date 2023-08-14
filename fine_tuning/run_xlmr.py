@@ -335,7 +335,6 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict, c_args: dict):
         data_collator = DataCollatorWithPadding(tokenizer, pad_to_multiple_of=8)
     else:
         data_collator = None
-
     # Hyperparameter Tuning
     if hyperparameter_tuning_args.do_hyperparameter_tuning:
         sweep_id = WAndBLoader.get_sweep_id(hyperparameter_tuning_args)
@@ -351,7 +350,6 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict, c_args: dict):
         wandb.agent(sweep_id, hyperparameter_tuner.train)
 
     if model_args.fine_tuned_wandb_name_tag != "":
-        # TODO: add the artifact's downloaded path dir name to the model's yaml config file
         model = WAndBLoader.get_best_model(model_args)
 
     trainer = Trainer(
@@ -364,7 +362,7 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict, c_args: dict):
         data_collator=data_collator,
     )
 
-    if training_args.do_train:
+    """if training_args.do_train:
         checkpoint = None
         if training_args.resume_from_checkpoint is not None:
             checkpoint = training_args.resume_from_checkpoint
@@ -383,26 +381,24 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict, c_args: dict):
 
         trainer.log_metrics("train", metrics)
         trainer.save_metrics("train", metrics)
-        trainer.save_state()
+        trainer.save_state()"""
 
     # Cross Tests
     if cross_tests_args.do_cross_tests:
-        for _, configs in cross_tests_args.datasets.items():
-            if configs["do_cross_tests"]:
-                cross_predictor = CrossPredictor(
-                    logger,
-                    cross_tests_args.output_dir,
-                    configs,
-                    trainer,
-                    tokenizer,
-                    model_args,
-                    training_args,
-                    data_args.dataset_name,
-                    data_args.overwrite_cache,
-                    preprocess_function,
-                    compute_metrics,
-                )
-                cross_predictor.do_cross_tests()
+        cross_predictor = CrossPredictor(
+            logger,
+            cross_tests_args.output_dir,
+            cross_tests_args.datasets,
+            trainer,
+            tokenizer,
+            model_args,
+            training_args,
+            data_args.dataset_name,
+            data_args.overwrite_cache,
+            preprocess_function,
+            compute_metrics,
+        )
+        cross_predictor.do_cross_tests()
 
     if training_args.do_eval:
         logger.info("*** Evaluate ***")
@@ -436,7 +432,6 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict, c_args: dict):
         trainer.save_metrics("predict", metrics)
 
         predictions = np.argmax(predictions, axis=1)
-        output_predict_file = os.join(training_args.output_dir, "predictions.txt")
         output_predict_file = os.join(training_args.output_dir, "predictions.txt")
         if trainer.is_world_process_zero():
             with open(output_predict_file, "w") as writer:

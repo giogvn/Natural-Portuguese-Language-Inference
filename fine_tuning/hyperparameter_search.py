@@ -4,6 +4,7 @@ from transformers import TrainingArguments, Trainer, EvalPrediction
 from datasets import load_dataset, load_metric, Dataset
 import numpy as np
 import os, shutil, json
+from functools import partial
 
 
 class CrossPredictor:
@@ -11,7 +12,7 @@ class CrossPredictor:
         self,
         logger,
         output_base_dir: str,
-        args,
+        test_datasets,
         trainer: Trainer,
         tokenizer,
         model_args: ModelArguments,
@@ -30,12 +31,17 @@ class CrossPredictor:
         self.tokenizer = tokenizer
         self.training_args = training_args
         self.model_args = model_args
-        self.test_datasets = args.datasets
+        self.test_datasets = test_datasets
         self.train_dataset_name = train_dataset_name
         self.overwrite_cache = overwrite_cache
 
     def do_cross_tests(self):
-        for dataset, args in self.test_datasets.items():
+        test_datasets = {
+            t_ds: args
+            for t_ds, args in self.test_datasets.items()
+            if args["do_cross_tests"]
+        }
+        for dataset, args in test_datasets.items():
             data_args = DataTrainingArguments(**args["data_args"])
             if "subsets" in args:
                 subsets = args["subsets"]
@@ -95,7 +101,12 @@ class CrossPredictor:
             if training_args.do_train
             else None,
             eval_dataset=self.trainer.eval_dataset if training_args.do_eval else None,
-            compute_metrics=self.trainer.compute_metrics,
+            compute_metrics=self.trainer.compute_metrics
+            if not hasattr(data_args, "modify_labels_and_preds")
+            else partial(
+                self.custom_compute_metrics,
+                modify_labels_and_preds=data_args.modify_labels_and_preds,
+            ),
             tokenizer=self.tokenizer,
             data_collator=self.trainer.data_collator,
         )
@@ -125,6 +136,42 @@ class CrossPredictor:
                         item = type(list(label_list.keys())[0])(item)
                     item = label_list[item]
                     writer.write(f"{index}\t{item}\n")
+
+    def custom_compute_metrics(self, p: EvalPrediction, modify_labels_and_preds: dict):
+        metrics = dict()
+
+        accuracy_metric = load_metric("accuracy")
+        precision_metric = load_metric("precision")
+        recall_metric = load_metric("recall")
+        f1_metric = load_metric("f1")
+
+        labels = p.label_ids
+        logits = p.predictions[0] if isinstance(p.predictions, tuple) else p.predictions
+        preds = np.argmax(logits, axis=-1)
+
+        if "preds" in modify_labels_and_preds:
+            for old_val, new_val in modify_labels_and_preds.preds.items():
+                preds[preds == old_val] = new_val
+        if "labels" in modify_labels_and_preds:
+            for old_val, new_val in modify_labels_and_preds.labels.items():
+                labels[labels == old_val] = new_val
+
+        metrics.update(accuracy_metric.compute(predictions=preds, references=labels))
+        metrics.update(
+            precision_metric.compute(
+                predictions=preds, references=labels, average="weighted"
+            )
+        )
+        metrics.update(
+            recall_metric.compute(
+                predictions=preds, references=labels, average="weighted"
+            )
+        )
+        metrics.update(
+            f1_metric.compute(predictions=preds, references=labels, average="weighted")
+        )
+
+        return metrics
 
 
 class HyperparameterTuner:
@@ -195,11 +242,6 @@ class HyperparameterTuner:
                     artifact.add_dir(save_dir)
                     run.log_artifact(artifact)
 
-                    if self.best_run != None:
-                        for art in self.best_run.logged_artifacts():
-                            art.delete(delete_aliases=True)
-
                     shutil.rmtree(save_dir)
 
                     self.curr_eval_accuracy = run_eval_accuracy
-                    self.best_run = run

@@ -1,0 +1,33 @@
+output_dir: cross_tests
+do_cross_tests: 1
+datasets:
+    assin:
+        do_cross_tests: 0
+        subsets:
+            - full
+            - ptpt
+            - ptbr            
+        data_args:
+            dataset_name: assin
+            rename_columns:
+                entailment_judgment: label
+            label_names:
+                predict_dataset:
+                    0: NONE
+                    1: ENTAILMENT
+                    2: PARAPHRASE
+            
+    assin2:
+        do_cross_tests: 1        
+        data_args:
+            dataset_name: assin2
+            rename_columns:
+                entailment_judgment: label
+            label_names:
+                predict_dataset:
+                    0: NONE
+                    1: ENTAILMENT
+                    2: PARAPHRASE
+            modify_labels_and_preds:
+                preds:
+                    2 : 1
