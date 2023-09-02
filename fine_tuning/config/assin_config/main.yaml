@@ -1,7 +1,7 @@
 defaults:
-  - model: xlmr_base
+  - model: albertina_ptbr_base
   - data_training: no_max_train_predict_samples
-  - hyperparameter_tuning: basic
-  - training: basic
-  - cross_tests: datasets
+  - hyperparameter_tuning: albertina_ptbr_base
+  - training: albertina_ptbr_base
+  - cross_tests: cross_tests
   - _self_

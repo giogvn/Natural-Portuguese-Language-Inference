@@ -1,7 +1,7 @@
 defaults:
-  - model: xlmr_base
+  - model: bert_large_pt_cased
   - data_training: no_max_train_predict_samples
-  - hyperparameter_tuning: basic
-  - training: basic
-  - cross_tests: datasets
+  - hyperparameter_tuning: bert_large_pt_cased
+  - training: bert_large_pt_cased
+  - cross_tests: cross_tests
   - _self_

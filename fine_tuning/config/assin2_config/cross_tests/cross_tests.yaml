@@ -1,8 +1,8 @@
-output_dir: cross_tests
-do_cross_tests: 1
+output_dir: cross_tests/xlm_roberta_trained_in/assin2
+do_cross_tests: 0
 datasets:
     assin:
-        do_cross_tests: 0   
+        do_cross_tests: 1
         subsets:
             - full
             - ptpt
@@ -20,7 +20,7 @@ datasets:
                 labels:
                     2 : 1
     assin2:
-        do_cross_tests: 0
+        do_cross_tests: 1
         test_datasets:
             assin2:
                 data_args:
@@ -33,7 +33,7 @@ datasets:
                             1: ENTAILMENT
                             2: PARAPHRASE    
     dlb/plue:
-        do_cross_tests: 1 
+        do_cross_tests: 0
         subsets:
             - mnli        
         data_args:
@@ -43,9 +43,12 @@ datasets:
                     0: entailment
                     1: neutral
                     2: contradiction
+            positive_filter:
+                label:
+                    - 0
+                    - 1
             modify_labels_and_preds:
                 labels:
                     0: 1
                     1: 0
-                    2: 1              
             test_dataset_split: validation_matched

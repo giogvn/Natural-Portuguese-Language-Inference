@@ -1,0 +1,6 @@
+model_name_or_path: xlm-roberta-base
+tokenizer_name: XLMRobertaTokenizer
+download_fine_tuned: 0
+fine_tuned_model_local_dir: models/bert-large-portuguese-cased_assin2
+fine_tuned_checkpoint_path: checkpoint-1200
+fine_tuned_wandb_name_tag: gio_projs/assin2-XLM-Roberta_v2/model:v7

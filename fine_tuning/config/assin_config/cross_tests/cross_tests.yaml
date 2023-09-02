@@ -1,5 +1,5 @@
-output_dir: cross_tests
-do_cross_tests: 1
+output_dir: cross_tests/xlm_roberta_trained_in/assin1
+do_cross_tests: 0
 datasets:
     assin:
         do_cross_tests: 0
@@ -15,10 +15,9 @@ datasets:
                 predict_dataset:
                     0: NONE
                     1: ENTAILMENT
-                    2: PARAPHRASE
-            
+                    2: PARAPHRASE       
     assin2:
-        do_cross_tests: 0      
+        do_cross_tests: 1 
         data_args:
             dataset_name: assin2
             rename_columns:
@@ -28,13 +27,10 @@ datasets:
                     0: NONE
                     1: ENTAILMENT
                     2: PARAPHRASE
-            modify_labels_and_preds:
-                preds:
-                    2: 1
     dlb/plue:
-        do_cross_tests: 1 
+        do_cross_tests: 1
         subsets:
-                - mnli        
+            - mnli        
         data_args:
             dataset_name: plue            
             label_names:
@@ -42,9 +38,12 @@ datasets:
                     0: entailment
                     1: neutral
                     2: contradiction
+            positive_filter:
+                label:
+                    - 0
+                    - 1
             modify_labels_and_preds:
                 labels:
                     0: 1
                     1: 0
-                    2: 1              
             test_dataset_split: validation_matched

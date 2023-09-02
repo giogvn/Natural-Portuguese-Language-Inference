@@ -1,6 +1,6 @@
 do_hyperparameter_tuning: 0
 optimized_metric: eval/accuracy
-project_path: gio_projs/assin-XLM-Roberta_v2
+project_path: gio_projs/assin_bert_large_pt_cased_v1
 sweep_id: ""
 sweep_config:
     metric:
@@ -10,20 +10,16 @@ sweep_config:
     parameters:
         epochs:
             values: 
-                - 1
                 - 2 
                 - 3
+                - 4
         batch_size:
             values:
-                - 8
                 - 16
                 - 32
-                - 64
-        weight_decay:
+        learning_rate:
             values:
-                - 0.0
-                - 0.1
-                - 0.2
-                - 0.3
-                - 0.4
-                - 0.5
+              - 0.00005
+              - 0.00003
+              - 0.00002
+

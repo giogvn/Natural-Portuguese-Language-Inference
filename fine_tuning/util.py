@@ -16,6 +16,7 @@ import pandas as pd
 import evaluate
 import wandb
 import os
+import torch
 
 HYPERPARAMETER_TUNING_MAX_TRAIN_SAMPLES = 1000
 HYPERPARAMETER_TUNING_MAX_EVAL_SAMPLES = 1000
@@ -268,9 +269,17 @@ class DataTrainingArguments:
         },
     )
 
-    test_dataset_split: dict[str:str] = field(
+    test_dataset_split: Optional[dict[str, str]] = field(
         default="test",
         metadata={"help": ("The name of the test dataset")},
+    )
+    positive_filter: Optional[dict] = field(
+        default=None,
+        metadata={
+            "help": (
+                "A dictionary with a key indicating the column name and its value is list so that dataset rows are filtered by the column values"
+            )
+        },
     )
 
 
@@ -365,6 +374,10 @@ class ModelArguments:
         default="",
         metadata={"help": "The fine tuned model name tag in Weights & Biases"},
     )
+    fine_tuned_checkpoint_path: Optional[str] = field(
+        default="",
+        metadata={"help": "The fine tuned model checkpoint path"},
+    )
 
 
 class HuggingFaceLoader:
@@ -409,8 +422,52 @@ class WAndBLoader:
             artifact.download(config.fine_tuned_model_local_dir)
 
         return AutoModelForSequenceClassification.from_pretrained(
-            config.fine_tuned_model_local_dir
+            config.fine_tuned_model_local_dir + "/" + config.fine_tuned_checkpoint_path
         )
+
+
+class PreprocessFunctions:
+    def __init__(self, model_name: str, tokenizer, padding, data_args):
+        self.model = model_name
+        self.tokenizer = tokenizer
+        self.padding = padding
+        self.data_args = data_args
+
+    def preprocess_function(self, examples):
+        encoding = self.tokenizer(
+            examples["premise"],
+            examples["hypothesis"],
+            padding=self.padding,
+            max_length=self.data_args.max_seq_length,
+            truncation=True,
+            return_tensors="pt",
+        )
+        input_ids = encoding["input_ids"]
+        attention_masks = encoding["attention_mask"]
+        labels = torch.tensor(examples["label"])
+
+        return {
+            "input_ids": input_ids,
+            "attention_mask": attention_masks,
+            "labels": labels,
+        }
+
+    def albertina_tokenize_function(self, examples):
+        return self.tokenizer(
+            examples["premise"],
+            examples["hypothesis"],
+            padding="max_length",
+            truncation=True,
+        )
+
+    def get_preprocess_function(self):
+        if (
+            self.model == "xlm-roberta-base"
+            or self.model == "neuralmind/bert-large-portuguese-cased"
+        ):
+            return self.preprocess_function
+        elif self.model == "PORTULAN/albertina-ptbr-base":
+            return self.albertina_tokenize_function
 
 
 def get_dataset_splits_and_configs(

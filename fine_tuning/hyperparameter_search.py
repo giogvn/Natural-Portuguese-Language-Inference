@@ -53,6 +53,10 @@ class CrossPredictor:
                         cache_dir=self.model_args.cache_dir,
                         use_auth_token=True if self.model_args.use_auth_token else None,
                     )
+                    if data_args.positive_filter != None:
+                        test_dataset = self._filter_rows(
+                            test_dataset, data_args.positive_filter
+                        )
                     self._predict(test_dataset, data_args, subset=subset)
             else:
                 test_dataset = load_dataset(
@@ -61,7 +65,30 @@ class CrossPredictor:
                     cache_dir=self.model_args.cache_dir,
                     use_auth_token=True if self.model_args.use_auth_token else None,
                 )
+                if data_args.positive_filter != None:
+                    test_dataset = self._filter_rows(
+                        test_dataset, data_args.positive_filter
+                    )
                 self._predict(test_dataset, data_args)
+
+    def _filter_rows(self, dataset: Dataset, conditions: dict, positive: bool = True):
+        for column, values in conditions.items():
+            filters = [
+                (values[i], values[i + 1])
+                for i in range(0, len(values), 2)
+                if i + 1 < len(values)
+            ]
+            if filters[-1][1] != values[-1]:
+                filters.append((values[-1], None))
+            for f in filters:
+                val1, val2 = f[0], f[1]
+                if positive and val2 != None:
+                    dataset = dataset.filter(
+                        lambda row: row[column] == val1 or row[column] == val2
+                    )
+                elif val2 == None:
+                    dataset = dataset.filter(lambda row: row[column] == val1)
+        return dataset
 
     def _predict(
         self,
@@ -197,29 +224,42 @@ class HyperparameterTuner:
         self.collate_func = collate_func
         self.best_run = None
         self.curr_eval_accuracy = float("-inf")
+        self.curr_eval_loss = float("inf")
+
+    def mount_training_args(self):
+        out = self.training_args.to_dict().copy()
+
+        for key, value in self.config.items():
+            out[key] = value
+
+        return TrainingArguments(**out)
 
     def train(self, config=None):
         run = wandb.init(config=config, resume=True)
         with run:
             self.config = wandb.config
 
-            training_args = TrainingArguments(
+            training_args = self.mount_training_args()
+
+            """training_args = TrainingArguments(
                 output_dir=self.training_args.output_dir,
                 report_to=self.training_args.report_to,
                 num_train_epochs=self.config.epochs,
-                weight_decay=self.config.weight_decay,
+                # weight_decay=self.config.weight_decay,
                 per_device_train_batch_size=self.config.batch_size,
                 per_device_eval_batch_size=16,
-                save_strategy=self.training_args.save_strategy,
                 evaluation_strategy=self.training_args.evaluation_strategy,
                 logging_strategy=self.training_args.logging_strategy,
-                load_best_model_at_end=self.training_args.load_best_model_at_end,
-                metric_for_best_model=self.optm_metric,
-                greater_is_better=self.goal == "maximize",
+                metric_for_best_model=self.training_args.metric_for_best_model,
+                greater_is_better=self.training_args.greater_is_better,
                 remove_unused_columns=self.training_args.remove_unused_columns,
                 fp16=self.training_args.fp16,
                 eval_steps=self.training_args.eval_steps,
-            )
+                save_total_limit=self.training_args.save_total_limit,
+                save_strategy=self.training_args.save_strategy,
+                save_steps=self.training_args.save_steps,
+                learning_rate=self.config.learning_rate,
+            )"""
 
             trainer = Trainer(
                 model_init=self.model_getter,
@@ -231,17 +271,18 @@ class HyperparameterTuner:
             )
 
             trainer.train()
+            trainer._load_best_model()
             eval_results = trainer.evaluate()
             run_eval_accuracy = eval_results["eval_accuracy"]
-            if run_eval_accuracy > self.curr_eval_accuracy:
+            run_eval_loss = eval_results["eval_loss"]
+            print(f"Best Model Yet Eval accuracy: {run_eval_accuracy}")
+            if run_eval_accuracy > self.curr_eval_accuracy or (
+                run_eval_accuracy == self.curr_eval_accuracy
+                and run_eval_loss < self.curr_eval_loss
+            ):
                 if trainer.is_world_process_zero():
-                    run_id = wandb.run.id
-                    save_dir = f"./best_model_{run_id}"
-                    trainer.model.save_pretrained(save_dir)
                     artifact = wandb.Artifact("model", type="model")
-                    artifact.add_dir(save_dir)
+                    artifact.add_dir(self.training_args.output_dir)
                     run.log_artifact(artifact)
-
-                    shutil.rmtree(save_dir)
-
                     self.curr_eval_accuracy = run_eval_accuracy
+                    self.curr_eval_loss = run_eval_loss
