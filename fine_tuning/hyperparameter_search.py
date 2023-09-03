@@ -4,7 +4,7 @@ from util import (
     ModelArguments,
     Predictor,
 )
-import wandb, os
+import wandb, os, csv
 from transformers import TrainingArguments, Trainer, EvalPrediction
 from datasets import load_dataset, load_metric, Dataset
 import numpy as np
@@ -154,6 +154,10 @@ class CrossPredictor:
                 modify_labels_and_preds=data_args.modify_labels_and_preds,
                 by_class_metric=by_class_metric,
                 test_label=class_label,
+                subset=subset,
+                model_name=self.model_args.model_name_or_path,
+                train_dataset=self.train_dataset_name,
+                test_dataset=predict_dataset_name,
             ),
             tokenizer=self.tokenizer,
             data_collator=self.trainer.data_collator,
@@ -171,9 +175,11 @@ class CrossPredictor:
                 self.train_class,
                 {v: k for k, v in data_args.label_names["predict_dataset"].items()},
                 by_class_metric=by_class_metric,
+                model_name=self.model_args.model_name_or_path,
+                test_set_subset=subset,
             )
 
-            predictions, metrics = predictor.predict(predict_dataset)
+            predictions, labels, metrics = predictor.predict(predict_dataset)
 
         # HERE IS WHERE THE TRANSLATION COMES OUT
 
@@ -200,22 +206,42 @@ class CrossPredictor:
         )
         metrics["predict_samples"] = min(max_predict_samples, len(predict_dataset))
 
-        print(metrics)
-
         trainer.log_metrics("predict", metrics)
         trainer.save_metrics("predict", metrics)
 
-        output_predict_file = os.path.join(output_dir, subset + "_predictions.txt")
+        output_predict_file = os.path.join(output_dir, "predictions.csv")
 
         label_list = data_args.label_names["predict_dataset"]
+        model_name = self.model_args.model_name_or_path
+        test_dataset = predict_dataset_name
+        train_dataset = self.train_dataset_name
+        columns = [
+            "model_name",
+            "test_dataset",
+            "train_dataset",
+            "index",
+            "prediction",
+            "label",
+        ]
+        data = {k: [] for k in columns}
+        data["model_name"] = [model_name] * len(predictions)
+        data["test_dataset"] = [test_dataset] * len(predictions)
+        data["train_dataset"] = [train_dataset] * len(predictions)
+        data["index"] = list(range(len(predictions)))
         if trainer.is_world_process_zero():
-            with open(output_predict_file, "w") as writer:
-                writer.write("index\tprediction\n")
-                for index, item in enumerate(predictions):
-                    if not type(list(label_list.keys())[0]) == type(item):
-                        item = type(list(label_list.keys())[0])(item)
-                    item = label_list[item]
-                    writer.write(f"{index}\t{item}\n")
+            for index, item in enumerate(predictions):
+                if not type(list(label_list.keys())[0]) == type(item):
+                    item = type(list(label_list.keys())[0])(item)
+                item = label_list[item]
+                label = label_list[int(labels[index])]
+                data["prediction"].append(item)
+                data["label"].append(label)
+
+            rows = zip(*data.values())
+            with open(output_predict_file, "w", newline="") as file:
+                writer = csv.writer(file)
+                writer.writerow(columns)
+                writer.writerows(rows)
 
     def custom_compute_metrics(
         self,
@@ -223,6 +249,10 @@ class CrossPredictor:
         modify_labels_and_preds: dict = {},
         by_class_metric: bool = False,
         test_label: dict = {},
+        model_name: str = "",
+        train_dataset: str = "",
+        test_dataset: str = "",
+        subset: str = "",
     ):
         metrics = dict()
 
@@ -276,6 +306,11 @@ class CrossPredictor:
                 metrics[test_class + "_" + metric_name] = f1_metric.compute(**args)[
                     metric_name
                 ]
+
+        metrics["model_name"] = model_name
+        metrics["train_dataset"] = train_dataset
+        metrics["test_dataset"] = test_dataset
+        metrics["test_subset"] = subset
 
         metrics.update(accuracy_metric.compute(predictions=preds, references=labels))
         metrics.update(

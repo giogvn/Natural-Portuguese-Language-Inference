@@ -1,0 +1,12 @@
+{
+    "accuracy": "predict_accuracy",
+    "precision": "predict_precision",
+    "recall": "predict_recall",
+    "f1": "predict_f1",
+    "predict_loss": "predict_loss",
+    "predict_runtime": "predict_runtime",
+    "predict_samples": "predict_samples",
+    "predict_samples_per_second": "predict_samples_per_second",
+    "predict_steps_per_second": "predict_steps_per_second",
+    "predict,CLASS,METRIC": "predict_CLASS_METRIC",
+}

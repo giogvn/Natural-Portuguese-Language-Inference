@@ -2,13 +2,11 @@ output_dir: translations/xlm_roberta_trained_in/assin2
 do_cross_tests: 1
 datasets:
     assin:
-        do_cross_tests: 0
+        do_cross_tests: 1
         do_label_translation : 1
         by_class_metric: 1
         subsets:
-            - full
-            - ptpt
-            - ptbr                
+            - full          
         data_args:
             dataset_name: assin
             rename_columns:
@@ -18,6 +16,8 @@ datasets:
                     0: NONE
                     1: ENTAILMENT
                     2: PARAPHRASE
+                    3: CONTRADICTION 
+                    4: NEUTRAL  
             modify_labels_and_preds:
                 labels:
                     2 : 1
@@ -33,6 +33,9 @@ datasets:
                 predict_dataset:
                     0: NONE
                     1: ENTAILMENT
+                    2: PARAPHRASE
+                    3: CONTRADICTION 
+                    4: NEUTRAL  
     dlb/plue:
         do_cross_tests: 0
         subsets:

@@ -531,6 +531,8 @@ class Predictor:
         premise_col: str = "premise",
         hypothesis_col: str = "hypothesis",
         by_class_metric: bool = False,
+        model_name: str = "transformer_based",
+        test_set_subset: str = "",
     ):
         self.dest = dest
         self.origin = origin
@@ -542,6 +544,8 @@ class Predictor:
         self.train_class = train_class
         self.test_label = test_label
         self.by_class_metric = by_class_metric
+        self.model_name = model_name
+        self.test_set_subset = test_set_subset
 
     def translate_and_predict(self, sentence_a: str, sentence_b: str) -> str:
         a_b = self.tokenizer(
@@ -652,7 +656,10 @@ class Predictor:
                 metrics[test_class + "_" + metric_name] = f1_metric.compute(**args)[
                     metric_name
                 ]
-
+        metrics["model_name"] = self.model_name
+        metrics["train_dataset"] = self.dest
+        metrics["test_dataset"] = self.origin
+        metrics["test_subset"] = self.test_set_subset
         metrics.update(accuracy_metric.compute(predictions=preds, references=labels))
         metrics.update(
             precision_metric.compute(
@@ -667,7 +674,7 @@ class Predictor:
         metrics.update(
             f1_metric.compute(predictions=preds, references=labels, average="weighted")
         )
-        return preds, metrics
+        return preds, labels, metrics
 
     def custom_compute_metrics(self, p: EvalPrediction, modify_labels_and_preds: dict):
         metrics = dict()
