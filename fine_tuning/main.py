@@ -336,7 +336,7 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict, c_args: dict):
         )
         wandb.agent(sweep_id, hyperparameter_tuner.train)
 
-    if model_args.fine_tuned_wandb_name_tag != "":
+    if model_args.load_fine_tuned:
         model = WAndBLoader.get_best_model(model_args)
 
     trainer = Trainer(
@@ -384,6 +384,7 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict, c_args: dict):
             data_args.overwrite_cache,
             preprocess_function,
             compute_metrics,
+            train_class=label_list,
         )
         cross_predictor.do_cross_tests()
 

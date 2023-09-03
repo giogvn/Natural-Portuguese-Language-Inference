@@ -1,6 +1,8 @@
 import datasets as ds
 
-from datasets import load_dataset, load_metric
+
+from transformers import EvalPrediction
+from datasets import load_dataset, load_metric, Dataset
 from dataclasses import dataclass, field
 from typing import Optional
 import numpy as np
@@ -10,6 +12,7 @@ from transformers import (
     XLMRobertaForSequenceClassification,
     EvalPrediction,
     AutoModelForSequenceClassification,
+    Trainer,
 )
 from omegaconf import DictConfig, OmegaConf
 import pandas as pd
@@ -379,6 +382,11 @@ class ModelArguments:
         metadata={"help": "The fine tuned model checkpoint path"},
     )
 
+    load_fine_tuned: bool = field(
+        default=False,
+        metadata={"help": "Will load a fine-tuned model from a local directory."},
+    )
+
 
 class HuggingFaceLoader:
     def __init__(self, config: DictConfig):
@@ -422,7 +430,7 @@ class WAndBLoader:
             artifact.download(config.fine_tuned_model_local_dir)
 
         return AutoModelForSequenceClassification.from_pretrained(
-            config.fine_tuned_model_local_dir + "/" + config.fine_tuned_checkpoint_path
+            config.fine_tuned_model_local_dir
         )
 
 
@@ -508,3 +516,193 @@ def get_xlmR_tokens(df: pd.DataFrame, tokenizer) -> list:
     )
 
     return encoded_inputs
+
+
+class Predictor:
+    def __init__(
+        self,
+        dest: str,
+        origin: str,
+        trainer: Trainer,
+        model,
+        tokenizer,
+        train_class: dict,
+        test_label: dict,
+        premise_col: str = "premise",
+        hypothesis_col: str = "hypothesis",
+        by_class_metric: bool = False,
+    ):
+        self.dest = dest
+        self.origin = origin
+        self.trainer = trainer
+        self.model = model
+        self.tokenizer = tokenizer
+        self.premise_col = premise_col
+        self.hypothesis_col = hypothesis_col
+        self.train_class = train_class
+        self.test_label = test_label
+        self.by_class_metric = by_class_metric
+
+    def translate_and_predict(self, sentence_a: str, sentence_b: str) -> str:
+        a_b = self.tokenizer(
+            sentence_a,
+            sentence_b,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=128,
+        )
+
+        a_b = {key: value.to("cuda:0") for key, value in a_b.items()}
+        self.model.to("cuda:0")
+        self.model.eval()
+
+        if self.origin.lower() == "assin" and self.dest.lower() == "assin2":
+            with torch.no_grad():
+                out_a_b = self.model(**a_b)
+                pred_a_b = torch.argmax(out_a_b.logits, dim=1).item()
+
+                if (
+                    self.train_class[pred_a_b] == "ENTAILMENT"
+                    or self.train_class[pred_a_b] == "PARAPHRASE"
+                ):
+                    return self.test_label["ENTAILMENT"]
+
+                return pred_a_b
+
+        if self.origin.lower() == "assin2" and self.dest.lower() == "assin":
+            b_a = self.tokenizer(
+                sentence_b,
+                sentence_a,
+                return_tensors="pt",
+                padding=True,
+                truncation=True,
+                max_length=128,
+            )
+            b_a = {key: value.to("cuda:0") for key, value in b_a.items()}
+
+            with torch.no_grad():
+                out_a_b = self.model(**a_b)
+                out_b_a = self.model(**b_a)
+
+                # If you're working with classification, use:
+                pred_a_b = torch.argmax(out_a_b.logits, dim=1).item()
+                pred_b_a = torch.argmax(out_b_a.logits, dim=1).item()
+
+                if self.train_class[pred_a_b] == "NONE":
+                    return pred_a_b
+
+                if (
+                    self.train_class[pred_a_b]
+                    == self.train_class[pred_b_a]
+                    == "ENTAILMENT"
+                ):
+                    return self.test_label["PARAPHRASE"]
+
+                return pred_a_b
+
+    def predict(self, test_dataset: Dataset):
+        preds = np.zeros(len(test_dataset), dtype=int)
+        labels = np.zeros(len(test_dataset), dtype=int)
+
+        for i, entry in enumerate(test_dataset):
+            sentence_a = entry[self.premise_col]
+            sentence_b = entry[self.hypothesis_col]
+            pred = self.translate_and_predict(sentence_a, sentence_b)
+            preds[i] = pred
+            labels[i] = entry["label"]
+
+        metrics = dict()
+
+        accuracy_metric = load_metric("accuracy")
+        precision_metric = load_metric("precision")
+        recall_metric = load_metric("recall")
+        f1_metric = load_metric("f1")
+
+        if self.by_class_metric:
+            for test_class, label in self.test_label.items():
+                indices = [
+                    i for i, true_label in enumerate(labels) if true_label == label
+                ]
+                subset_true = [labels[i] for i in indices]
+                subset_pred = [preds[i] for i in indices]
+
+                args = {
+                    "predictions": subset_pred,
+                    "references": subset_true,
+                    "average": "macro",
+                }
+
+                metric_name = "accuracy"
+                metrics[test_class + "_" + metric_name] = accuracy_metric.compute(
+                    predictions=subset_pred, references=subset_true
+                )[metric_name]
+
+                metric_name = "recall"
+                metrics[test_class + "_" + metric_name] = recall_metric.compute(**args)[
+                    metric_name
+                ]
+
+                metric_name = "precision"
+                metrics[test_class + "_" + metric_name] = precision_metric.compute(
+                    **args
+                )[metric_name]
+
+                metric_name = "f1"
+                metrics[test_class + "_" + metric_name] = f1_metric.compute(**args)[
+                    metric_name
+                ]
+
+        metrics.update(accuracy_metric.compute(predictions=preds, references=labels))
+        metrics.update(
+            precision_metric.compute(
+                predictions=preds, references=labels, average="weighted"
+            )
+        )
+        metrics.update(
+            recall_metric.compute(
+                predictions=preds, references=labels, average="weighted"
+            )
+        )
+        metrics.update(
+            f1_metric.compute(predictions=preds, references=labels, average="weighted")
+        )
+        return preds, metrics
+
+    def custom_compute_metrics(self, p: EvalPrediction, modify_labels_and_preds: dict):
+        metrics = dict()
+
+        accuracy_metric = load_metric("accuracy")
+        precision_metric = load_metric("precision")
+        recall_metric = load_metric("recall")
+        f1_metric = load_metric("f1")
+
+        labels = p.label_ids
+        logits = p.predictions[0] if isinstance(p.predictions, tuple) else p.predictions
+        preds = np.argmax(logits, axis=-1)
+
+        metrics.update(accuracy_metric.compute(predictions=preds, references=labels))
+        metrics.update(
+            precision_metric.compute(
+                predictions=preds, references=labels, average="weighted"
+            )
+        )
+        metrics.update(
+            recall_metric.compute(
+                predictions=preds, references=labels, average="weighted"
+            )
+        )
+        metrics.update(
+            f1_metric.compute(predictions=preds, references=labels, average="weighted")
+        )
+
+        return metrics
+
+    def translate(self, a, b) -> str:
+        pass
+
+    translation = {
+        "ENTAILMENT": "ENTAILMENT",
+        "PARAPHRASE": "ENTAILMENT AND ENTAILMENT",
+        "NONE": "NONE",
+    }

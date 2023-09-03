@@ -1,0 +1,15 @@
+{
+    "ENTAILMENT_accuracy": 0.8684640522875817,
+    "ENTAILMENT_f1": 0.46480104940970707,
+    "ENTAILMENT_precision": 0.5,
+    "ENTAILMENT_recall": 0.43423202614379086,
+    "NONE_accuracy": 0.5441176470588235,
+    "NONE_f1": 0.3523809523809524,
+    "NONE_precision": 0.5,
+    "NONE_recall": 0.27205882352941174,
+    "accuracy": 0.7062908496732027,
+    "f1": 0.6983576102874074,
+    "precision": 0.730544239862685,
+    "predict_samples": 2448,
+    "recall": 0.7062908496732027
+}

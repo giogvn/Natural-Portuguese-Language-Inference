@@ -1,4 +1,9 @@
-from util import HyperparameterTuningArguments, DataTrainingArguments, ModelArguments
+from util import (
+    HyperparameterTuningArguments,
+    DataTrainingArguments,
+    ModelArguments,
+    Predictor,
+)
 import wandb, os
 from transformers import TrainingArguments, Trainer, EvalPrediction
 from datasets import load_dataset, load_metric, Dataset
@@ -12,7 +17,7 @@ class CrossPredictor:
         self,
         logger,
         output_base_dir: str,
-        test_datasets,
+        test_datasets: dict,
         trainer: Trainer,
         tokenizer,
         model_args: ModelArguments,
@@ -21,6 +26,7 @@ class CrossPredictor:
         overwrite_cache: bool,
         preprocess_func: callable,
         metrics_computer: callable,
+        train_class: dict = None,
     ):
         self.train_dataset_name = train_dataset_name
         self.output_base_dir = output_base_dir
@@ -34,6 +40,7 @@ class CrossPredictor:
         self.test_datasets = test_datasets
         self.train_dataset_name = train_dataset_name
         self.overwrite_cache = overwrite_cache
+        self.train_class = train_class
 
     def do_cross_tests(self):
         test_datasets = {
@@ -43,6 +50,8 @@ class CrossPredictor:
         }
         for dataset, args in test_datasets.items():
             data_args = DataTrainingArguments(**args["data_args"])
+            do_label_translation = args["do_label_translation"]
+            by_class_metric = args["by_class_metric"]
             if "subsets" in args:
                 subsets = args["subsets"]
                 for subset in subsets:
@@ -57,7 +66,15 @@ class CrossPredictor:
                         test_dataset = self._filter_rows(
                             test_dataset, data_args.positive_filter
                         )
-                    self._predict(test_dataset, data_args, subset=subset)
+
+                    self._predict(
+                        dataset,
+                        test_dataset,
+                        data_args,
+                        do_label_translation,
+                        subset=subset,
+                        by_class_metric=by_class_metric,
+                    )
             else:
                 test_dataset = load_dataset(
                     dataset,
@@ -69,7 +86,13 @@ class CrossPredictor:
                     test_dataset = self._filter_rows(
                         test_dataset, data_args.positive_filter
                     )
-                self._predict(test_dataset, data_args)
+                self._predict(
+                    dataset,
+                    test_dataset,
+                    data_args,
+                    do_label_translation,
+                    by_class_metric=by_class_metric,
+                )
 
     def _filter_rows(self, dataset: Dataset, conditions: dict, positive: bool = True):
         for column, values in conditions.items():
@@ -92,23 +115,16 @@ class CrossPredictor:
 
     def _predict(
         self,
+        predict_dataset_name: str,
         predict_dataset: Dataset,
         data_args: DataTrainingArguments,
+        do_label_translation: bool = False,
         subset: str = "",
+        by_class_metric: bool = False,
     ):
         self.logger.info("*** Predict ***")
         if data_args.rename_columns != None:
             predict_dataset = predict_dataset.rename_columns(data_args.rename_columns)
-        with self.training_args.main_process_first(
-            desc="prediction dataset map pre-processing"
-        ):
-            predict_dataset = predict_dataset.map(
-                self.preprocess_func,
-                batched=True,
-                load_from_cache_file=not self.overwrite_cache,
-                desc="Running tokenizer on prediction dataset",
-                remove_columns=predict_dataset.column_names,
-            )
 
         output_dir = os.path.join(
             self.output_base_dir, data_args.dataset_name + "_" + subset
@@ -120,6 +136,9 @@ class CrossPredictor:
 
         t_args = self.training_args.to_dict()
         t_args["output_dir"] = output_dir
+        class_label = {
+            v: k for k, v in data_args.label_names["predict_dataset"].items()
+        }
         training_args = TrainingArguments(**t_args)
         trainer = Trainer(
             model=self.trainer.model,
@@ -129,17 +148,50 @@ class CrossPredictor:
             else None,
             eval_dataset=self.trainer.eval_dataset if training_args.do_eval else None,
             compute_metrics=self.trainer.compute_metrics
-            if not data_args.modify_labels_and_preds
+            if not True
             else partial(
                 self.custom_compute_metrics,
                 modify_labels_and_preds=data_args.modify_labels_and_preds,
+                by_class_metric=by_class_metric,
+                test_label=class_label,
             ),
             tokenizer=self.tokenizer,
             data_collator=self.trainer.data_collator,
         )
-        predictions, labels, metrics = trainer.predict(
-            predict_dataset, metric_key_prefix="predict"
-        )
+
+        # HERE IS WHERE THE TRANSLATION COMES IN
+
+        if do_label_translation:
+            predictor = Predictor(
+                predict_dataset_name,
+                self.train_dataset_name,
+                trainer,
+                self.trainer.model,
+                self.tokenizer,
+                self.train_class,
+                {v: k for k, v in data_args.label_names["predict_dataset"].items()},
+                by_class_metric=by_class_metric,
+            )
+
+            predictions, metrics = predictor.predict(predict_dataset)
+
+        # HERE IS WHERE THE TRANSLATION COMES OUT
+
+        else:
+            with self.training_args.main_process_first(
+                desc="prediction dataset map pre-processing"
+            ):
+                predict_dataset = predict_dataset.map(
+                    self.preprocess_func,
+                    batched=True,
+                    load_from_cache_file=not self.overwrite_cache,
+                    desc="Running tokenizer on prediction dataset",
+                    remove_columns=predict_dataset.column_names,
+                )
+            predictions, labels, metrics = trainer.predict(
+                predict_dataset, metric_key_prefix="predict"
+            )
+            predictions = np.argmax(predictions, axis=1)
 
         max_predict_samples = (
             data_args.max_predict_samples
@@ -148,10 +200,11 @@ class CrossPredictor:
         )
         metrics["predict_samples"] = min(max_predict_samples, len(predict_dataset))
 
+        print(metrics)
+
         trainer.log_metrics("predict", metrics)
         trainer.save_metrics("predict", metrics)
 
-        predictions = np.argmax(predictions, axis=1)
         output_predict_file = os.path.join(output_dir, subset + "_predictions.txt")
 
         label_list = data_args.label_names["predict_dataset"]
@@ -164,7 +217,13 @@ class CrossPredictor:
                     item = label_list[item]
                     writer.write(f"{index}\t{item}\n")
 
-    def custom_compute_metrics(self, p: EvalPrediction, modify_labels_and_preds: dict):
+    def custom_compute_metrics(
+        self,
+        p: EvalPrediction,
+        modify_labels_and_preds: dict = {},
+        by_class_metric: bool = False,
+        test_label: dict = {},
+    ):
         metrics = dict()
 
         accuracy_metric = load_metric("accuracy")
@@ -176,12 +235,47 @@ class CrossPredictor:
         logits = p.predictions[0] if isinstance(p.predictions, tuple) else p.predictions
         preds = np.argmax(logits, axis=-1)
 
-        if "preds" in modify_labels_and_preds:
-            for old_val, new_val in modify_labels_and_preds.preds.items():
-                preds[preds == old_val] = new_val
-        if "labels" in modify_labels_and_preds:
-            for old_val, new_val in modify_labels_and_preds.labels.items():
-                labels[labels == old_val] = new_val
+        if modify_labels_and_preds:
+            if "preds" in modify_labels_and_preds:
+                for old_val, new_val in modify_labels_and_preds.preds.items():
+                    preds[preds == old_val] = new_val
+            if "labels" in modify_labels_and_preds:
+                for old_val, new_val in modify_labels_and_preds.labels.items():
+                    labels[labels == old_val] = new_val
+
+        if by_class_metric:
+            for test_class, label in test_label.items():
+                indices = [
+                    i for i, true_label in enumerate(labels) if true_label == label
+                ]
+                subset_true = [labels[i] for i in indices]
+                subset_pred = [preds[i] for i in indices]
+
+                args = {
+                    "predictions": subset_pred,
+                    "references": subset_true,
+                    "average": "macro",
+                }
+
+                metric_name = "accuracy"
+                metrics[test_class + "_" + metric_name] = accuracy_metric.compute(
+                    predictions=subset_pred, references=subset_true
+                )[metric_name]
+
+                metric_name = "recall"
+                metrics[test_class + "_" + metric_name] = recall_metric.compute(**args)[
+                    metric_name
+                ]
+
+                metric_name = "precision"
+                metrics[test_class + "_" + metric_name] = precision_metric.compute(
+                    **args
+                )[metric_name]
+
+                metric_name = "f1"
+                metrics[test_class + "_" + metric_name] = f1_metric.compute(**args)[
+                    metric_name
+                ]
 
         metrics.update(accuracy_metric.compute(predictions=preds, references=labels))
         metrics.update(
