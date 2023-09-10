@@ -1,0 +1,20 @@
+dataset_name: assin
+subset: full
+evaluation:
+  path: glue
+  config_name: mnli
+rename_columns:
+  entailment_judgment: label
+label_names:
+  train_dataset:
+    0: NONE
+    1: ENTAILMENT
+    2: PARAPHRASE
+  eval_dataset:
+    0: NONE
+    1: ENTAILMENT
+    2: PARAPHRASE
+  predict_dataset:
+    0: NONE
+    1: ENTAILMENT
+    2: PARAPHRASE

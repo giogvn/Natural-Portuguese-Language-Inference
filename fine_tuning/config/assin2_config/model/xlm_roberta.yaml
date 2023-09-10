@@ -1,0 +1,5 @@
+model_name_or_path: xlm-roberta-base
+tokenizer_name: XLMRobertaTokenizer
+load_fine_tuned: 1
+download_fine_tuned: 0
+fine_tuned_model_local_dir: models/xlm_roberta_assin2

@@ -1,0 +1,5 @@
+model_name_or_path: PORTULAN/albertina-ptbr-base
+download_fine_tuned: 0
+fine_tuned_model_local_dir: models/albertina-ptbr-base/assin
+fine_tuned_checkpoint_path: checkpoint-300
+fine_tuned_wandb_name_tag: gio_projs/assin_bert_large_pt_cased_v1/model:v0

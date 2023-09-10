@@ -1,0 +1,25 @@
+do_hyperparameter_tuning: 1
+optimized_metric: eval/accuracy
+project_path: gio_projs/assin2_bert_large_pt_cased_v1
+sweep_id: ""
+sweep_config:
+    metric:
+        name: loss
+        goal: minimize
+    method: grid
+    parameters:
+        epochs:
+            values: 
+                - 2 
+                - 3
+                - 4
+        batch_size:
+            values:
+                - 16
+                - 32
+        learning_rate:
+            values:
+              - 0.00005
+              - 0.00003
+              - 0.00002
+

@@ -1,0 +1,58 @@
+output_dir: translations/xlm_roberta_trained_in/assin2
+do_cross_tests: 1
+datasets:
+    assin:
+        do_cross_tests: 1
+        do_label_translation : 1
+        by_class_metric: 1
+        subsets:
+            - full          
+        data_args:
+            dataset_name: assin
+            rename_columns:
+                entailment_judgment: label
+            label_names:
+                predict_dataset:
+                    0: NONE
+                    1: ENTAILMENT
+                    2: PARAPHRASE
+                    3: CONTRADICTION 
+                    4: NEUTRAL  
+            modify_labels_and_preds:
+                labels:
+                    2 : 1
+    assin2:
+        do_cross_tests: 1                
+        do_label_translation : 0
+        by_class_metric: 1
+        data_args:
+            dataset_name: assin2
+            rename_columns:
+                entailment_judgment: label
+            label_names:
+                predict_dataset:
+                    0: NONE
+                    1: ENTAILMENT
+                    2: PARAPHRASE
+                    3: CONTRADICTION 
+                    4: NEUTRAL  
+    dlb/plue:
+        do_cross_tests: 0
+        subsets:
+            - mnli        
+        data_args:
+            dataset_name: plue            
+            label_names:
+                predict_dataset:
+                    0: entailment
+                    1: neutral
+                    2: contradiction
+            positive_filter:
+                label:
+                    - 0
+                    - 1
+            modify_labels_and_preds:
+                labels:
+                    0: 1
+                    1: 0
+            test_dataset_split: validation_matched

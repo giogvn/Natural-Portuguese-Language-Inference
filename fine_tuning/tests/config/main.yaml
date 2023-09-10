@@ -1,0 +1,6 @@
+defaults:
+  - model: generic
+  - data_training: generic
+  - training: generic
+  - hyperparameter_tuning: generic
+  - _self_
