@@ -1,4 +1,4 @@
-output_dir: translations/xlm_roberta_trained_in/assin2
+output_dir: translations/bert_large_pt_cased_trained_in/assin2
 do_cross_tests: 1
 datasets:
     assin:

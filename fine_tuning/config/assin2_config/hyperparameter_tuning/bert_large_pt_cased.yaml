@@ -1,4 +1,4 @@
-do_hyperparameter_tuning: 1
+do_hyperparameter_tuning: 0
 optimized_metric: eval/accuracy
 project_path: gio_projs/assin2_bert_large_pt_cased_v1
 sweep_id: ""
