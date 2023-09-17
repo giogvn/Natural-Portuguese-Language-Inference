@@ -160,6 +160,16 @@ class DataTrainingArguments:
     the command line.
     """
 
+    new_label_map: Optional[dict] = field(
+        default=None,
+        metadata={"help": ("A mapping of dataset labels to their new names")},
+    )
+
+    label_map: Optional[dict] = field(
+        default=None,
+        metadata={"help": ("A mapping of dataset names to their new labels")},
+    )
+
     dataset_name: Optional[str] = field(
         default="assin",
         metadata={"help": ("The name in HuggingFace of the dataset used for training")},
@@ -172,6 +182,21 @@ class DataTrainingArguments:
                 "The name of the metric in the HuggingFace Hub to be used in the model evaluation along with its subset's name "
             )
         },
+    )
+
+    train_split: Optional[str] = field(
+        default="train",
+        metadata={"help": ("The name of the train split")},
+    )
+
+    eval_split: Optional[str] = field(
+        default="validation",
+        metadata={"help": ("The name of the evaluation dataset split")},
+    )
+
+    test_split: Optional[str] = field(
+        default="test",
+        metadata={"help": ("The name of the test dataset split")},
     )
 
     rename_columns: Optional[dict[str, str]] = field(
@@ -561,6 +586,28 @@ class Predictor:
         self.model.to("cuda:0")
         self.model.eval()
 
+        if self.origin.lower() == "assin2" and self.dest.lower() == "dlb/plue":
+            with torch.no_grad():
+                out_a_b = self.model(**a_b)
+                pred_a_b = torch.argmax(out_a_b.logits, dim=1).item()
+                if (
+                    self.train_class[pred_a_b] == "ENTAILMENT"
+                    or self.train_class[pred_a_b] == "PARAPHRASE"
+                ):
+                    return self.test_label["ENTAILMENT"]
+                return pred_a_b
+
+        if self.origin.lower() == "assin" and self.dest.lower() == "dlb/plue":
+            with torch.no_grad():
+                out_a_b = self.model(**a_b)
+                pred_a_b = torch.argmax(out_a_b.logits, dim=1).item()
+                if (
+                    self.train_class[pred_a_b] == "ENTAILMENT"
+                    or self.train_class[pred_a_b] == "PARAPHRASE"
+                ):
+                    return self.test_label["ENTAILMENT"]
+                return pred_a_b
+
         if self.origin.lower() == "assin" and self.dest.lower() == "assin2":
             with torch.no_grad():
                 out_a_b = self.model(**a_b)
@@ -571,7 +618,6 @@ class Predictor:
                     or self.train_class[pred_a_b] == "PARAPHRASE"
                 ):
                     return self.test_label["ENTAILMENT"]
-
                 return pred_a_b
 
         if self.origin.lower() == "assin2" and self.dest.lower() == "assin":

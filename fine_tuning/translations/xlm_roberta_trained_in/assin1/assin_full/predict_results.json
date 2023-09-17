@@ -25,10 +25,10 @@
     "predict_model_name": "xlm-roberta-base",
     "predict_precision": 0.8935596527783592,
     "predict_recall": 0.8975,
-    "predict_runtime": 50.8494,
+    "predict_runtime": 50.8682,
     "predict_samples": 4000,
-    "predict_samples_per_second": 78.664,
-    "predict_steps_per_second": 4.916,
+    "predict_samples_per_second": 78.635,
+    "predict_steps_per_second": 4.915,
     "predict_test_dataset": "assin",
     "predict_test_subset": "full",
     "predict_train_dataset": "assin"

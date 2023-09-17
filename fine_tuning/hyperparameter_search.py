@@ -125,6 +125,14 @@ class CrossPredictor:
         self.logger.info("*** Predict ***")
         if data_args.rename_columns != None:
             predict_dataset = predict_dataset.rename_columns(data_args.rename_columns)
+        if data_args.label_map != None:
+            predict_dataset = predict_dataset.map(
+                self._rename_labels,
+                fn_kwargs={
+                    "old_map": data_args.label_names.predict_dataset,
+                    "new_map": data_args.label_map,
+                },
+            )
 
         output_dir = os.path.join(
             self.output_base_dir, data_args.dataset_name + "_" + subset
@@ -166,6 +174,11 @@ class CrossPredictor:
         # HERE IS WHERE THE TRANSLATION COMES IN
 
         if do_label_translation:
+            if data_args.label_map != None:
+                label_map = data_args.new_label_map
+            else:
+                label_map = data_args.label_names["predict_dataset"]
+            label_map = {v: k for k, v in label_map.items()}
             predictor = Predictor(
                 predict_dataset_name,
                 self.train_dataset_name,
@@ -173,7 +186,7 @@ class CrossPredictor:
                 self.trainer.model,
                 self.tokenizer,
                 self.train_class,
-                {v: k for k, v in data_args.label_names["predict_dataset"].items()},
+                label_map,
                 by_class_metric=by_class_metric,
                 model_name=self.model_args.model_name_or_path,
                 test_set_subset=subset,
@@ -211,7 +224,10 @@ class CrossPredictor:
 
         output_predict_file = os.path.join(output_dir, "predictions.csv")
 
-        label_list = data_args.label_names["predict_dataset"]
+        if data_args.label_map != None:
+            label_list = data_args.new_label_map
+        else:
+            label_list = data_args.label_names["predict_dataset"]
         model_name = self.model_args.model_name_or_path
         test_dataset = predict_dataset_name
         train_dataset = self.train_dataset_name
@@ -242,6 +258,11 @@ class CrossPredictor:
                 writer = csv.writer(file)
                 writer.writerow(columns)
                 writer.writerows(rows)
+
+    def _rename_labels(self, example, old_map, new_map):
+        old_label_str = old_map[example["label"]]
+        example["label"] = new_map[old_label_str]
+        return example
 
     def custom_compute_metrics(
         self,

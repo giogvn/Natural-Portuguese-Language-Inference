@@ -1,0 +1,16 @@
+output_dir: training_checkpoints/plue_mnli_xlm_roberta
+overwrite_output_dir: 1
+do_train: 1
+do_eval: 1
+do_predict: 1
+evaluation_strategy: steps
+report_to: wandb
+eval_steps: 100
+save_strategy: steps
+save_steps: 100
+save_total_limit: 2
+metric_for_best_model: eval_loss
+greater_is_better: 0
+logging_strategy: epoch
+remove_unused_columns: 1
+fp16: 1

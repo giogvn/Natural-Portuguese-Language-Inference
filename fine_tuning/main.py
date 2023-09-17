@@ -137,7 +137,7 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict, c_args: dict):
     if data_args.subset is None:
         train_dataset = load_dataset(
             data_args.dataset_name,
-            split="train",
+            split=data_args.train_split,
             cache_dir=model_args.cache_dir,
             use_auth_token=True if model_args.use_auth_token else None,
         )
@@ -145,7 +145,7 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict, c_args: dict):
         train_dataset = load_dataset(
             data_args.dataset_name,
             name=data_args.subset,
-            split="train",
+            split=data_args.train_split,
             cache_dir=model_args.cache_dir,
             use_auth_token=True if model_args.use_auth_token else None,
         )
@@ -154,7 +154,7 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict, c_args: dict):
     eval_dataset = load_dataset(
         data_args.dataset_name,
         name=data_args.subset,
-        split="validation",
+        split=data_args.eval_split,
         cache_dir=model_args.cache_dir,
         use_auth_token=True if model_args.use_auth_token else None,
     )
@@ -163,7 +163,7 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict, c_args: dict):
     predict_dataset = load_dataset(
         data_args.dataset_name,
         name=data_args.subset,
-        split="test",
+        split=data_args.test_split,
         cache_dir=model_args.cache_dir,
         use_auth_token=True if model_args.use_auth_token else None,
     )
@@ -433,7 +433,7 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict, c_args: dict):
 
 
 if __name__ == "__main__":
-    initialize(config_path="config/assin_config", version_base=None)
+    initialize(config_path="config/assin2_config", version_base=None)
     config = compose(config_name="main")
     loader = HuggingFaceLoader(config)
     m_args = loader.get_model_args()

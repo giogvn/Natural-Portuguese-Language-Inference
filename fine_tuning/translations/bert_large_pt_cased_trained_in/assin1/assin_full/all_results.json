@@ -25,10 +25,10 @@
     "predict_model_name": "neuralmind/bert-large-portuguese-cased",
     "predict_precision": 0.9191444514957252,
     "predict_recall": 0.918,
-    "predict_runtime": 67.4262,
+    "predict_runtime": 67.3209,
     "predict_samples": 4000,
-    "predict_samples_per_second": 59.324,
-    "predict_steps_per_second": 3.708,
+    "predict_samples_per_second": 59.417,
+    "predict_steps_per_second": 3.714,
     "predict_test_dataset": "assin",
     "predict_test_subset": "full",
     "predict_train_dataset": "assin"

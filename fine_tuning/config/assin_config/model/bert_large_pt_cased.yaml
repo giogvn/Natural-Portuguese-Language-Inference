@@ -1,5 +1,5 @@
 model_name_or_path: neuralmind/bert-large-portuguese-cased
 load_fine_tuned: 1
 download_fine_tuned: 0
-fine_tuned_model_local_dir: models/bert-large-portuguese-cased/assin
+fine_tuned_model_local_dir: models/bert-large-portuguese-cased_assin
 fine_tuned_wandb_name_tag: gio_projs/assin_bert_large_pt_cased_v1/model:v0

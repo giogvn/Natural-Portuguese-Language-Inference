@@ -1,0 +1,21 @@
+dataset_name: dlb/plue
+subset: mnli
+train_split: train
+eval_split: validation_matched
+test_split: test_matched
+evaluation:
+  path: glue
+  config_name: mnli
+label_names:
+  train_dataset:
+    0: entailment
+    1: neutral
+    2: contradiction
+  eval_dataset:
+    0: entailment
+    1: neutral
+    2: contradiction
+  predict_dataset:
+    0: entailment
+    1: neutral
+    2: contradiction
