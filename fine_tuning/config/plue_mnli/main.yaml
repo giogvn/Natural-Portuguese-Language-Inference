@@ -1,7 +1,7 @@
 defaults:
-  - model: bert_large_pt_cased
+  - model: xlm_roberta
   - data_training: no_max_train_predict_samples
-  - hyperparameter_tuning: bert_large_pt_cased
-  - training: bert_large_pt_cased
+  - hyperparameter_tuning: xlm_roberta
+  - training: xlm_roberta
   - cross_tests: cross_tests
   - _self_

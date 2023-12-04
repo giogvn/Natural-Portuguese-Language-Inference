@@ -1,6 +1,6 @@
 output_dir: training_checkpoints/assin_xlm_roberta
 overwrite_output_dir: 1
-do_train: 1
+do_train: 0
 do_eval: 1
 do_predict: 1
 evaluation_strategy: steps

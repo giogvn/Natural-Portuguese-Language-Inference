@@ -89,6 +89,16 @@ class HyperparameterTuningArguments:
         },
     )
 
+    max_samples: Optional[int] = field(
+        default=None,
+        metadata={
+            "help": (
+                "For debugging or memory saving purposes or quicker training, truncate the number of hyperparameter tuning examples to this "
+                "value if set."
+            )
+        },
+    )
+
     """epochs: dict[str, list[int] | float | int | str] = field(
         default={"values": [3]},
         metadata={
@@ -597,16 +607,47 @@ class Predictor:
                     return self.test_label["ENTAILMENT"]
                 return pred_a_b
 
-        if self.origin.lower() == "assin" and self.dest.lower() == "dlb/plue":
+        if self.origin.lower() == "dlb/plue" and (self.dest.lower() == "assin"):
+            b_a = self.tokenizer(
+                sentence_b,
+                sentence_a,
+                return_tensors="pt",
+                padding=True,
+                truncation=True,
+                max_length=128,
+            )
+            b_a = {key: value.to("cuda:0") for key, value in b_a.items()}
+            with torch.no_grad():
+                out_a_b = self.model(**a_b)
+                out_b_a = self.model(**b_a)
+
+                pred_a_b = torch.argmax(out_a_b.logits, dim=1).item()
+                pred_b_a = torch.argmax(out_b_a.logits, dim=1).item()
+                if (
+                    self.train_class[pred_a_b] == "contradiction"
+                    or self.train_class[pred_a_b] == "neutral"
+                ):
+                    return self.test_label["NONE"]
+                if (
+                    self.train_class[pred_a_b]
+                    == self.train_class[pred_b_a]
+                    == "entailment"
+                ):
+                    return self.test_label["PARAPHRASE"]
+
+                return self.test_label["ENTAILMENT"]
+
+        if self.origin.lower() == "dlb/plue" and (self.dest.lower() == "assin2"):
             with torch.no_grad():
                 out_a_b = self.model(**a_b)
                 pred_a_b = torch.argmax(out_a_b.logits, dim=1).item()
                 if (
-                    self.train_class[pred_a_b] == "ENTAILMENT"
-                    or self.train_class[pred_a_b] == "PARAPHRASE"
+                    self.train_class[pred_a_b] == "contradiction"
+                    or self.train_class[pred_a_b] == "neutral"
                 ):
-                    return self.test_label["ENTAILMENT"]
-                return pred_a_b
+                    return self.test_label["NONE"]
+
+                return self.test_label["ENTAILMENT"]
 
         if self.origin.lower() == "assin" and self.dest.lower() == "assin2":
             with torch.no_grad():
@@ -635,7 +676,6 @@ class Predictor:
                 out_a_b = self.model(**a_b)
                 out_b_a = self.model(**b_a)
 
-                # If you're working with classification, use:
                 pred_a_b = torch.argmax(out_a_b.logits, dim=1).item()
                 pred_b_a = torch.argmax(out_b_a.logits, dim=1).item()
 
@@ -653,14 +693,14 @@ class Predictor:
 
     def predict(self, test_dataset: Dataset):
         preds = np.zeros(len(test_dataset), dtype=int)
-        labels = np.zeros(len(test_dataset), dtype=int)
+        references = np.zeros(len(test_dataset), dtype=int)
 
         for i, entry in enumerate(test_dataset):
             sentence_a = entry[self.premise_col]
             sentence_b = entry[self.hypothesis_col]
             pred = self.translate_and_predict(sentence_a, sentence_b)
             preds[i] = pred
-            labels[i] = entry["label"]
+            references[i] = entry["label"]
 
         metrics = dict()
 
@@ -670,57 +710,55 @@ class Predictor:
         f1_metric = load_metric("f1")
 
         if self.by_class_metric:
+            labels = list(set(references))
+
+            def get_metrics_by_class(metrics):
+                return {label: score for label, score in zip(labels, metrics)}
+
+            precisions = precision_metric.compute(
+                predictions=preds, references=references, average=None
+            )["precision"]
+            recalls = recall_metric.compute(
+                predictions=preds, references=references, average=None
+            )["recall"]
+            f1_scores = f1_metric.compute(
+                predictions=preds, references=references, average=None
+            )["f1"]
+
+            precisions = get_metrics_by_class(precisions)
+            recalls = get_metrics_by_class(recalls)
+            f1_scores = get_metrics_by_class(f1_scores)
             for test_class, label in self.test_label.items():
-                indices = [
-                    i for i, true_label in enumerate(labels) if true_label == label
-                ]
-                subset_true = [labels[i] for i in indices]
-                subset_pred = [preds[i] for i in indices]
-
-                args = {
-                    "predictions": subset_pred,
-                    "references": subset_true,
-                    "average": "macro",
-                }
-
-                metric_name = "accuracy"
-                metrics[test_class + "_" + metric_name] = accuracy_metric.compute(
-                    predictions=subset_pred, references=subset_true
-                )[metric_name]
-
-                metric_name = "recall"
-                metrics[test_class + "_" + metric_name] = recall_metric.compute(**args)[
-                    metric_name
-                ]
-
-                metric_name = "precision"
-                metrics[test_class + "_" + metric_name] = precision_metric.compute(
-                    **args
-                )[metric_name]
-
-                metric_name = "f1"
-                metrics[test_class + "_" + metric_name] = f1_metric.compute(**args)[
-                    metric_name
-                ]
+                if label in precisions:
+                    metric_name = "precision"
+                    metrics[test_class + "_" + metric_name] = precisions[label]
+                    metric_name = "recall"
+                    metrics[test_class + "_" + metric_name] = recalls[label]
+                    metric_name = "f1"
+                    metrics[test_class + "_" + metric_name] = f1_scores[label]
         metrics["model_name"] = self.model_name
         metrics["train_dataset"] = self.dest
         metrics["test_dataset"] = self.origin
         metrics["test_subset"] = self.test_set_subset
-        metrics.update(accuracy_metric.compute(predictions=preds, references=labels))
+        metrics.update(
+            accuracy_metric.compute(predictions=preds, references=references)
+        )
         metrics.update(
             precision_metric.compute(
-                predictions=preds, references=labels, average="weighted"
+                predictions=preds, references=references, average="weighted"
             )
         )
         metrics.update(
             recall_metric.compute(
-                predictions=preds, references=labels, average="weighted"
+                predictions=preds, references=references, average="weighted"
             )
         )
         metrics.update(
-            f1_metric.compute(predictions=preds, references=labels, average="weighted")
+            f1_metric.compute(
+                predictions=preds, references=references, average="weighted"
+            )
         )
-        return preds, labels, metrics
+        return preds, references, metrics
 
     def custom_compute_metrics(self, p: EvalPrediction, modify_labels_and_preds: dict):
         metrics = dict()

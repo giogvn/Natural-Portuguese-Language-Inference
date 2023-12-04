@@ -68,7 +68,8 @@ def plot_metrics_by_attribute(
     cols=["accuracy", "f1", "recall", "precision"],
 ):
     img_types_dfs = {
-        pipeline: pipelines_dfs[pipeline][attr_col] for pipeline in pipelines_dfs.keys()
+        pipeline: pipelines_dfs[pipeline][attr_col]
+        for pipeline in pipelines_dfs.keys()
     }
 
     all_img_types = np.unique(
@@ -82,9 +83,21 @@ def plot_metrics_by_attribute(
         fig, ax = plt.subplots()
 
         for i, (pipeline, img_type_df) in enumerate(img_types_dfs.items()):
-            acc = img_type_df.loc[img, "accuracy"] if img in img_type_df.index else 0
-            rec = img_type_df.loc[img, "recall"] if img in img_type_df.index else 0
-            prec = img_type_df.loc[img, "precision"] if img in img_type_df.index else 0
+            acc = (
+                img_type_df.loc[img, "accuracy"]
+                if img in img_type_df.index
+                else 0
+            )
+            rec = (
+                img_type_df.loc[img, "recall"]
+                if img in img_type_df.index
+                else 0
+            )
+            prec = (
+                img_type_df.loc[img, "precision"]
+                if img in img_type_df.index
+                else 0
+            )
             f1 = img_type_df.loc[img, "f1"] if img in img_type_df.index else 0
 
             acc_bar = ax.bar(i - bar_width / 4, acc, bar_width, color="b")

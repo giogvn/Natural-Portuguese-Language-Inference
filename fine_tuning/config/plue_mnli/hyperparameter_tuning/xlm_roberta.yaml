@@ -1,6 +1,7 @@
-do_hyperparameter_tuning: 1
+do_hyperparameter_tuning: 0
 optimized_metric: eval/accuracy
-project_path: gio_projs/plue_mnli_xlm_roberta_v1
+project_path: gio_projs/plue_mnli_xlm_roberta_v3
+max_samples: 20000
 sweep_id: ""
 sweep_config:
     metric:

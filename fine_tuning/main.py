@@ -24,7 +24,7 @@ import sys
 import datasets
 import torch
 import numpy as np
-from datasets import load_dataset, load_metric
+from datasets import load_dataset, load_metric, concatenate_datasets, Dataset
 import transformers
 import wandb
 from transformers import (
@@ -52,7 +52,7 @@ from util import (
 )
 from hydra import compose, initialize
 from hyperparameter_search import HyperparameterTuner, CrossPredictor
-from omegaconf import OmegaConf
+from collections import Counter
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 check_min_version("4.31.0.dev0")
@@ -134,21 +134,29 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict, c_args: dict):
     # In distributed training, the load_dataset function guarantees that only one local process can concurrently
     # download the dataset.
     # Downloading and loading xnli dataset from the hub.
-    if data_args.subset is None:
-        train_dataset = load_dataset(
-            data_args.dataset_name,
-            split=data_args.train_split,
-            cache_dir=model_args.cache_dir,
-            use_auth_token=True if model_args.use_auth_token else None,
-        )
-    else:
-        train_dataset = load_dataset(
-            data_args.dataset_name,
-            name=data_args.subset,
-            split=data_args.train_split,
-            cache_dir=model_args.cache_dir,
-            use_auth_token=True if model_args.use_auth_token else None,
-        )
+
+    def get_train_dataset(data_args):
+        if data_args.subset is None:
+            train_dataset = load_dataset(
+                data_args.dataset_name,
+                split=data_args.train_split,
+                cache_dir=model_args.cache_dir,
+                use_auth_token=True if model_args.use_auth_token else None,
+            )
+        else:
+            train_dataset = load_dataset(
+                data_args.dataset_name,
+                name=data_args.subset,
+                split=data_args.train_split,
+                cache_dir=model_args.cache_dir,
+                use_auth_token=True if model_args.use_auth_token else None,
+            )
+        if data_args.rename_columns is not None:
+            if training_args.do_train:
+                train_dataset = train_dataset.rename_columns(data_args.rename_columns)
+        return train_dataset
+
+    train_dataset = get_train_dataset(data_args)
     label_list = data_args.label_names["train_dataset"]
 
     eval_dataset = load_dataset(
@@ -170,8 +178,6 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict, c_args: dict):
     label_list = data_args.label_names["predict_dataset"]
 
     if data_args.rename_columns is not None:
-        if training_args.do_train:
-            train_dataset = train_dataset.rename_columns(data_args.rename_columns)
         if training_args.do_eval:
             eval_dataset = eval_dataset.rename_columns(data_args.rename_columns)
         if training_args.do_predict:
@@ -232,10 +238,42 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict, c_args: dict):
     )
     preprocess_function = preprocess_function.get_preprocess_function()
 
+    def select_balanced_subset(dataset, n, rows_to_ignore: list = []):
+        if len(rows_to_ignore):
+            dataset = dataset.filter(
+                lambda example: example["idx"] not in rows_to_ignore
+            )
+        labels_count = Counter(dataset["label"])
+        max_samples = list(labels_count.values())
+        max_samples.append(n // len(labels_count))
+        max_samples = min(max_samples)
+        selected_rows = []
+        selected_indexes = []
+        for label in labels_count.keys():
+            label_data = dataset.filter(lambda row: row["label"] == label)
+            label_data = label_data.shuffle()[:max_samples]
+            selected_indexes.extend(label_data["idx"])
+            selected_rows.append(label_data)
+
+        selected_rows = [Dataset.from_dict(row) for row in selected_rows]
+
+        return concatenate_datasets(selected_rows), selected_indexes
+
     if training_args.do_train:
         if data_args.max_train_samples is not None:
-            max_train_samples = min(len(train_dataset), data_args.max_train_samples)
-            train_dataset = train_dataset.select(range(max_train_samples))
+            max_samples = min(len(train_dataset), data_args.max_train_samples)
+            train_dataset, _ = select_balanced_subset(train_dataset, max_samples)
+        if hyperparameter_tuning_args.max_samples is not None:
+            max_samples = min(
+                len(train_dataset), hyperparameter_tuning_args.max_samples
+            )
+            (
+                hyperparameter_tuning_dataset,
+                _,
+            ) = select_balanced_subset(train_dataset, max_samples)
+        else:
+            hyperparameter_tuning_dataset = train_dataset
+
         with training_args.main_process_first(desc="train dataset map pre-processing"):
             train_dataset = train_dataset.map(
                 preprocess_function,
@@ -244,6 +282,19 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict, c_args: dict):
                 desc="Running tokenizer on train dataset",
                 remove_columns=train_dataset.column_names,
             )
+        if hyperparameter_tuning_dataset != train_dataset:
+            with training_args.main_process_first(
+                desc="train dataset map pre-processing"
+            ):
+                hyperparameter_tuning_dataset = hyperparameter_tuning_dataset.map(
+                    preprocess_function,
+                    batched=True,
+                    load_from_cache_file=not data_args.overwrite_cache,
+                    desc="Running tokenizer on hyperparameter tuning dataset dataset",
+                    remove_columns=hyperparameter_tuning_dataset.column_names,
+                )
+        else:
+            hyperparameter_tuning_dataset = train_dataset
         # Log a few random samples from the training set:
         for index in random.sample(range(len(train_dataset)), 3):
             logger.info(f"Sample {index} of the training set: {train_dataset[index]}.")
@@ -251,7 +302,10 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict, c_args: dict):
     if training_args.do_eval:
         if data_args.max_eval_samples is not None:
             max_eval_samples = min(len(eval_dataset), data_args.max_eval_samples)
-            eval_dataset = eval_dataset.select(range(max_eval_samples))
+            if data_args.max_eval_samples is not None:
+                eval_dataset, eval_rows = select_balanced_subset(
+                    eval_dataset, max_eval_samples
+                )
         with training_args.main_process_first(
             desc="validation dataset map pre-processing"
         ):
@@ -328,7 +382,7 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict, c_args: dict):
         hyperparameter_tuner = HyperparameterTuner(
             hyperparameter_tuning_args,
             training_args,
-            train_dataset,
+            hyperparameter_tuning_dataset,
             eval_dataset,
             compute_metrics,
             data_collator,
@@ -349,7 +403,7 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict, c_args: dict):
         data_collator=data_collator,
     )
 
-    """if training_args.do_train:
+    if training_args.do_train:
         checkpoint = None
         if training_args.resume_from_checkpoint is not None:
             checkpoint = training_args.resume_from_checkpoint
@@ -368,7 +422,7 @@ def main(m_args: dict, d_args: dict, t_args: dict, h_args: dict, c_args: dict):
 
         trainer.log_metrics("train", metrics)
         trainer.save_metrics("train", metrics)
-        trainer.save_state()"""
+        trainer.save_state()
 
     # Cross Tests
     if cross_tests_args.do_cross_tests:

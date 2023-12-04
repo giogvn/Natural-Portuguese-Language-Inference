@@ -1,4 +1,4 @@
-output_dir: translations/bert_large_pt_cased_trained_in/assin1
+output_dir: translations/xlm_roberta_trained_in/assin1
 do_cross_tests: 1
 datasets:
     assin:
@@ -36,7 +36,7 @@ datasets:
 
     dlb/plue:
         do_cross_tests: 1
-        do_label_translation : 1
+        do_label_translation : 0
         by_class_metric: 1
         subsets:
             - mnli        
@@ -51,7 +51,7 @@ datasets:
             label_map:
                 entailment: 1
                 neutral: 0
-                contradiction: 2
+                contradiction: 0
             new_label_map:
                 0: NONE
                 1: ENTAILMENT

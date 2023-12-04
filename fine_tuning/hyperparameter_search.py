@@ -174,7 +174,7 @@ class CrossPredictor:
         # HERE IS WHERE THE TRANSLATION COMES IN
 
         if do_label_translation:
-            if data_args.label_map != None:
+            if data_args.label_map:
                 label_map = data_args.new_label_map
             else:
                 label_map = data_args.label_names["predict_dataset"]
@@ -282,70 +282,68 @@ class CrossPredictor:
         recall_metric = load_metric("recall")
         f1_metric = load_metric("f1")
 
-        labels = p.label_ids
+        references = p.label_ids
         logits = p.predictions[0] if isinstance(p.predictions, tuple) else p.predictions
         preds = np.argmax(logits, axis=-1)
-
         if modify_labels_and_preds:
             if "preds" in modify_labels_and_preds:
                 for old_val, new_val in modify_labels_and_preds.preds.items():
                     preds[preds == old_val] = new_val
             if "labels" in modify_labels_and_preds:
-                for old_val, new_val in modify_labels_and_preds.labels.items():
-                    labels[labels == old_val] = new_val
+                for old_val, new_val in modify_labels_and_preds.references.items():
+                    references[references == old_val] = new_val
 
         if by_class_metric:
+            labels = list(set(references))
+
+            def get_metrics_by_class(metrics):
+                return {label: score for label, score in zip(labels, metrics)}
+
+            precisions = precision_metric.compute(
+                predictions=preds, references=references, average=None
+            )["precision"]
+            recalls = recall_metric.compute(
+                predictions=preds, references=references, average=None
+            )["recall"]
+            f1_scores = f1_metric.compute(
+                predictions=preds, references=references, average=None
+            )["f1"]
+
+            precisions = get_metrics_by_class(precisions)
+            recalls = get_metrics_by_class(recalls)
+            f1_scores = get_metrics_by_class(f1_scores)
+
             for test_class, label in test_label.items():
-                indices = [
-                    i for i, true_label in enumerate(labels) if true_label == label
-                ]
-                subset_true = [labels[i] for i in indices]
-                subset_pred = [preds[i] for i in indices]
-
-                args = {
-                    "predictions": subset_pred,
-                    "references": subset_true,
-                    "average": "macro",
-                }
-
-                metric_name = "accuracy"
-                metrics[test_class + "_" + metric_name] = accuracy_metric.compute(
-                    predictions=subset_pred, references=subset_true
-                )[metric_name]
-
-                metric_name = "recall"
-                metrics[test_class + "_" + metric_name] = recall_metric.compute(**args)[
-                    metric_name
-                ]
-
-                metric_name = "precision"
-                metrics[test_class + "_" + metric_name] = precision_metric.compute(
-                    **args
-                )[metric_name]
-
-                metric_name = "f1"
-                metrics[test_class + "_" + metric_name] = f1_metric.compute(**args)[
-                    metric_name
-                ]
+                if label in precisions:
+                    metric_name = "precision"
+                    metrics[test_class + "_" + metric_name] = precisions[label]
+                    metric_name = "recall"
+                    metrics[test_class + "_" + metric_name] = recalls[label]
+                    metric_name = "f1"
+                    metrics[test_class + "_" + metric_name] = f1_scores[label]
 
         metrics["model_name"] = model_name
         metrics["train_dataset"] = train_dataset
         metrics["test_dataset"] = test_dataset
         metrics["test_subset"] = subset
 
-        metrics.update(accuracy_metric.compute(predictions=preds, references=labels))
+        metrics.update(
+            accuracy_metric.compute(predictions=preds, references=references)
+        )
         metrics.update(
             precision_metric.compute(
-                predictions=preds, references=labels, average="weighted"
+                predictions=preds, references=references, average="weighted"
             )
         )
         metrics.update(
             recall_metric.compute(
-                predictions=preds, references=labels, average="weighted"
+                predictions=preds, references=references, average="weighted"
             )
         )
         metrics.update(
-            f1_metric.compute(predictions=preds, references=labels, average="weighted")
+            f1_metric.compute(
+                predictions=preds, references=references, average="weighted"
+            )
         )
 
         return metrics
@@ -375,6 +373,7 @@ class HyperparameterTuner:
         self.best_run = None
         self.curr_eval_accuracy = float("-inf")
         self.curr_eval_loss = float("inf")
+        self.max_samples = args.max_samples
 
     def mount_training_args(self):
         out = self.training_args.to_dict().copy()
@@ -385,7 +384,7 @@ class HyperparameterTuner:
         return TrainingArguments(**out)
 
     def train(self, config=None):
-        run = wandb.init(config=config, resume=True)
+        run = wandb.init(config=config, resume=True, project=self.project_path)
         with run:
             self.config = wandb.config
 
@@ -426,7 +425,7 @@ class HyperparameterTuner:
             run_eval_accuracy = eval_results["eval_accuracy"]
             run_eval_loss = eval_results["eval_loss"]
             print(f"Best Model Yet Eval accuracy: {run_eval_accuracy}")
-            if run_eval_accuracy > self.curr_eval_accuracy or (
+            """if run_eval_accuracy > self.curr_eval_accuracy or (
                 run_eval_accuracy == self.curr_eval_accuracy
                 and run_eval_loss < self.curr_eval_loss
             ):
@@ -435,4 +434,4 @@ class HyperparameterTuner:
                     artifact.add_dir(self.training_args.output_dir)
                     run.log_artifact(artifact)
                     self.curr_eval_accuracy = run_eval_accuracy
-                    self.curr_eval_loss = run_eval_loss
+                    self.curr_eval_loss = run_eval_loss"""

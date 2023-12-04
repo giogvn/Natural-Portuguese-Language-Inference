@@ -1,0 +1,22 @@
+do_hyperparameter_tuning: 0
+optimized_metric: eval/accuracy
+project_path: gio_projs/plue_mnli_bert_large_pt_cased_trained_v3
+sweep_id: ""
+sweep_config:
+    metric:
+        name: loss
+        goal: minimize
+    method: grid
+    parameters:
+        num_train_epochs:
+            values:
+                - 3
+        per_device_train_batch_size:
+            values:
+                - 16
+        learning_rate:
+            values:
+              - 0.00001
+        weight_decay:
+            values:
+              - 0.01

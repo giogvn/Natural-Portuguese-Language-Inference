@@ -1,0 +1,20 @@
+{
+    "ENTAILMENT_f1": 0.7701863354037267,
+    "ENTAILMENT_precision": 0.7868020304568528,
+    "ENTAILMENT_recall": 0.754257907542579,
+    "NONE_f1": 0.9423304583121935,
+    "NONE_precision": 0.9367854741089442,
+    "NONE_recall": 0.9479414766927526,
+    "PARAPHRASE_f1": 0.7085953878406708,
+    "PARAPHRASE_precision": 0.7100840336134454,
+    "PARAPHRASE_recall": 0.7071129707112971,
+    "accuracy": 0.89375,
+    "f1": 0.8929891705938301,
+    "model_name": "xlm-roberta-base",
+    "precision": 0.8924184653688333,
+    "predict_samples": 4000,
+    "recall": 0.89375,
+    "test_dataset": "dlb/plue",
+    "test_subset": "full",
+    "train_dataset": "assin"
+}

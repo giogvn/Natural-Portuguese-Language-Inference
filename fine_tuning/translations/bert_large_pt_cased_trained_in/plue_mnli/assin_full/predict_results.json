@@ -1,0 +1,20 @@
+{
+    "ENTAILMENT_f1": 0.5786924939467313,
+    "ENTAILMENT_precision": 0.5759036144578313,
+    "ENTAILMENT_recall": 0.5815085158150851,
+    "NONE_f1": 0.8794751640112465,
+    "NONE_precision": 0.9791318864774624,
+    "NONE_recall": 0.7982306907111262,
+    "PARAPHRASE_f1": 0.43632773938795655,
+    "PARAPHRASE_precision": 0.28552971576227393,
+    "PARAPHRASE_recall": 0.9246861924686193,
+    "accuracy": 0.76125,
+    "f1": 0.7911862666917471,
+    "model_name": "neuralmind/bert-large-portuguese-cased",
+    "precision": 0.8548257468771957,
+    "predict_samples": 4000,
+    "recall": 0.76125,
+    "test_dataset": "dlb/plue",
+    "test_subset": "full",
+    "train_dataset": "assin"
+}

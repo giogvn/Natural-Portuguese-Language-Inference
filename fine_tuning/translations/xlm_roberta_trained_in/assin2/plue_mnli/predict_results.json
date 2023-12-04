@@ -1,0 +1,21 @@
+{
+    "predict_accuracy": 0.708507386653082,
+    "predict_entailment_f1": 0.8056517899599213,
+    "predict_entailment_precision": 0.7072152653548003,
+    "predict_entailment_recall": 0.9359217171717171,
+    "predict_f1": 0.6679596412108915,
+    "predict_loss": 1.199855089187622,
+    "predict_model_name": "xlm-roberta-base",
+    "predict_neutral_f1": 0.41719291097983296,
+    "predict_neutral_precision": 0.7160839160839161,
+    "predict_neutral_recall": 0.2943374532911756,
+    "predict_precision": 0.7103588247930676,
+    "predict_recall": 0.708507386653082,
+    "predict_runtime": 116.0334,
+    "predict_samples": 9815,
+    "predict_samples_per_second": 84.588,
+    "predict_steps_per_second": 5.292,
+    "predict_test_dataset": "dlb/plue",
+    "predict_test_subset": "mnli",
+    "predict_train_dataset": "assin2"
+}

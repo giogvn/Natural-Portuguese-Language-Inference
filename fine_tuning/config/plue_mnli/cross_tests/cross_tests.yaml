@@ -1,5 +1,5 @@
-output_dir: translations/bert_large_pt_cased_trained_in/assin2
-do_cross_tests: 0
+output_dir: translations/xlm_roberta_trained_in/plue_mnli
+do_cross_tests: 1
 datasets:
     assin:
         do_cross_tests: 1
@@ -49,12 +49,4 @@ datasets:
                     0: entailment
                     1: neutral
                     2: contradiction
-            positive_filter:
-                label:
-                    - 0
-                    - 1
-            modify_labels_and_preds:
-                labels:
-                    0: 1
-                    1: 0
             test_dataset_split: validation_matched
