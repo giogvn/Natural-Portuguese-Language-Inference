@@ -12,9 +12,9 @@
     "f1": 0.7911862666917471,
     "model_name": "neuralmind/bert-large-portuguese-cased",
     "precision": 0.8548257468771957,
-    "predict_samples": 4000,
+    "samples": 4000,
     "recall": 0.76125,
-    "test_dataset": "dlb/plue",
+    "test_dataset": "assin",
     "test_subset": "full",
-    "train_dataset": "assin"
+    "train_dataset": "dlb/plue"
 }

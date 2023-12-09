@@ -11,7 +11,7 @@
     "precision": 0.730544239862685,
     "predict_samples": 2448,
     "recall": 0.7062908496732027,
-    "test_dataset": "assin",
+    "test_dataset": "assin2",
     "test_subset": "",
-    "train_dataset": "assin2"
+    "train_dataset": "assin"
 }

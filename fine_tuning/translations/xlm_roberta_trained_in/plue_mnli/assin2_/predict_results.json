@@ -9,9 +9,9 @@
     "f1": 0.8615073825447354,
     "model_name": "xlm-roberta-base",
     "precision": 0.8616473040709859,
-    "predict_samples": 2448,
+    "samples": 2448,
     "recall": 0.8615196078431373,
-    "test_dataset": "dlb/plue",
+    "test_dataset": "assin2",
     "test_subset": "",
-    "train_dataset": "assin2"
+    "train_dataset": "dlb/plue"
 }
